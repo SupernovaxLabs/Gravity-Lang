@@ -1,0 +1,322 @@
+name: PR Guidelines Validation
+
+on:
+  pull_request:
+    types: [opened, edited, synchronize, reopened, ready_for_review]
+
+permissions:
+  pull-requests: write
+  contents: read
+
+jobs:
+  validate-pr:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Validate PR Title
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const pr = context.payload.pull_request;
+            const title = pr.title;
+            const issues = [];
+            const warnings = [];
+
+            // Check 1: Title should not be empty or too short
+            if (title.length < 10) {
+              issues.push('❌ PR title is too short (minimum 10 characters)');
+            }
+
+            // Check 2: Title should follow conventional commit format (recommended)
+            const conventionalCommitPattern = /^(feat|fix|docs|style|refactor|perf|test|chore|ci|build)(\(.+\))?!?:\s.+/;
+            if (!conventionalCommitPattern.test(title)) {
+              warnings.push('⚠️ PR title should follow conventional commit format: `type: description` or `type(scope): description`');
+              warnings.push('  Valid types: feat, fix, docs, style, refactor, perf, test, chore, ci, build');
+              warnings.push('  Example: `feat: add Barnes-Hut algorithm` or `fix(parser): handle empty lines`');
+            }
+
+            // Check 3: Title should not end with period
+            if (title.endsWith('.')) {
+              warnings.push('⚠️ PR title should not end with a period');
+            }
+
+            // Check 4: Title should start with lowercase after type
+            const titleMatch = title.match(/^[a-z]+(\(.+\))?!?:\s*(.+)/);
+            if (titleMatch && titleMatch[2]) {
+              const description = titleMatch[2];
+              if (description[0] !== description[0].toLowerCase()) {
+                warnings.push('⚠️ Description after type should start with lowercase');
+              }
+            }
+
+            return { issues, warnings };
+
+      - name: Validate PR Description
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const pr = context.payload.pull_request;
+            const body = pr.body || '';
+            const issues = [];
+            const warnings = [];
+
+            // Check 1: PR must have a description
+            if (body.trim().length === 0) {
+              issues.push('❌ PR description is empty. Please provide context about your changes.');
+              issues.push('  See CONTRIBUTING.md for guidelines on PR descriptions');
+            }
+
+            // Check 2: Description should be substantial (at least 50 characters)
+            if (body.trim().length > 0 && body.trim().length < 50) {
+              warnings.push('⚠️ PR description is very short. Consider adding more context.');
+            }
+
+            // Check 3: Check for common sections (recommended)
+            const hasMotivation = body.toLowerCase().includes('## motivation') ||
+                                 body.toLowerCase().includes('## description') ||
+                                 body.toLowerCase().includes('## changes') ||
+                                 body.toLowerCase().includes('## what');
+
+            const hasTesting = body.toLowerCase().includes('## testing') ||
+                              body.toLowerCase().includes('## test') ||
+                              body.toLowerCase().includes('tested');
+
+            if (!hasMotivation) {
+              warnings.push('⚠️ Consider adding a section describing what changes were made and why');
+            }
+
+            if (!hasTesting && !pr.draft) {
+              warnings.push('⚠️ Consider adding a section describing how the changes were tested');
+            }
+
+            // Check 4: Check if PR references an issue (recommended)
+            const issuePattern = /#\d+|https:\/\/github\.com\/[^\/]+\/[^\/]+\/issues\/\d+/;
+            const hasIssueRef = issuePattern.test(body);
+
+            if (!hasIssueRef) {
+              warnings.push('⚠️ Consider referencing related issues using #issue-number or "Fixes #issue-number"');
+            }
+
+            return { issues, warnings };
+
+      - name: Validate Changed Files
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const pr = context.payload.pull_request;
+            const issues = [];
+            const warnings = [];
+
+            // Get list of changed files
+            const { data: files } = await github.rest.pulls.listFiles({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: pr.number
+            });
+
+            // Check 1: Documentation should be updated for certain changes
+            const hasCodeChanges = files.some(f =>
+              f.filename.endsWith('.cpp') ||
+              f.filename.endsWith('.h') ||
+              f.filename.endsWith('.hpp')
+            );
+
+            const hasDocChanges = files.some(f =>
+              f.filename.endsWith('.md') ||
+              f.filename.startsWith('docs/')
+            );
+
+            const hasExampleChanges = files.some(f =>
+              f.filename.endsWith('.gravity')
+            );
+
+            if (hasCodeChanges && !hasDocChanges && files.length > 5) {
+              warnings.push('⚠️ Consider updating documentation for significant code changes');
+            }
+
+            // Check 2: Tests should be included for new features
+            const hasTestChanges = files.some(f =>
+              f.filename.includes('test') ||
+              f.filename.startsWith('tests/')
+            );
+
+            const title = pr.title.toLowerCase();
+            const isFeature = title.startsWith('feat:') || title.startsWith('feature:');
+
+            if (isFeature && !hasTestChanges && !pr.draft) {
+              warnings.push('⚠️ New features should include tests');
+            }
+
+            // Check 3: Check for common issues
+            const hasBuildFileChanges = files.some(f =>
+              f.filename === 'CMakeLists.txt' ||
+              f.filename.includes('cmake')
+            );
+
+            if (hasBuildFileChanges) {
+              warnings.push('ℹ️ Build system changes detected - please verify builds on all platforms');
+            }
+
+            // Check 4: Large PRs warning
+            const totalChanges = files.reduce((sum, f) => sum + f.changes, 0);
+            if (totalChanges > 1000) {
+              warnings.push('⚠️ This is a large PR (1000+ lines changed). Consider breaking it into smaller PRs.');
+            }
+
+            return { issues, warnings, filesCount: files.length, totalChanges };
+
+      - name: Check Branch Name
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const pr = context.payload.pull_request;
+            const branch = pr.head.ref;
+            const warnings = [];
+
+            // Check for descriptive branch names
+            const goodPrefixes = ['feature/', 'feat/', 'fix/', 'bugfix/', 'hotfix/', 'docs/', 'refactor/', 'chore/', 'test/'];
+            const hasGoodPrefix = goodPrefixes.some(prefix => branch.startsWith(prefix));
+
+            if (!hasGoodPrefix && !branch.match(/^[a-z]+-\d+/)) {
+              warnings.push('⚠️ Consider using descriptive branch names like feature/my-feature or fix/issue-123');
+            }
+
+            // Warn about pushing to main directly
+            if (branch === 'main' || branch === 'master') {
+              warnings.push('❌ Do not create PRs from main/master branch. Create a feature branch instead.');
+            }
+
+            return { warnings, branch };
+
+      - name: Compile Validation Results
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const pr = context.payload.pull_request;
+
+            // Collect all validation results from previous steps
+            let allIssues = [];
+            let allWarnings = [];
+
+            // Note: In practice, you'd need to pass results between steps
+            // For simplicity, we'll re-run checks here
+
+            const title = pr.title;
+            const body = pr.body || '';
+
+            // Title validation
+            if (title.length < 10) {
+              allIssues.push('❌ PR title is too short (minimum 10 characters)');
+            }
+
+            const conventionalCommitPattern = /^(feat|fix|docs|style|refactor|perf|test|chore|ci|build)(\(.+\))?!?:\s.+/;
+            if (!conventionalCommitPattern.test(title)) {
+              allWarnings.push('⚠️ PR title should follow conventional commit format');
+            }
+
+            // Description validation
+            if (body.trim().length === 0) {
+              allIssues.push('❌ PR description is empty');
+            } else if (body.trim().length < 50) {
+              allWarnings.push('⚠️ PR description is very short (less than 50 characters)');
+            }
+
+            // Create validation report comment
+            const hasIssues = allIssues.length > 0;
+            const hasWarnings = allWarnings.length > 0;
+
+            if (!hasIssues && !hasWarnings) {
+              // PR follows guidelines - add a positive comment
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: pr.number,
+                body: `✅ **PR Guidelines Validation Passed**
+
+This PR follows all required contributing guidelines! Thank you for following best practices.
+
+📖 See [CONTRIBUTING.md](../CONTRIBUTING.md) for more information.`
+              });
+            } else {
+              // Generate detailed report
+              let report = `## 📋 PR Guidelines Validation Report\n\n`;
+
+              if (hasIssues) {
+                report += `### ❌ Required Changes\n\n`;
+                report += allIssues.map(issue => `${issue}`).join('\n') + '\n\n';
+                report += `These issues must be addressed before the PR can be merged.\n\n`;
+              }
+
+              if (hasWarnings) {
+                report += `### ⚠️ Recommendations\n\n`;
+                report += allWarnings.map(warning => `${warning}`).join('\n') + '\n\n';
+                report += `These are suggestions to improve your PR. While not required, following these guidelines helps maintain code quality.\n\n`;
+              }
+
+              report += `### 📖 Resources\n\n`;
+              report += `- [Contributing Guidelines](../CONTRIBUTING.md)\n`;
+              report += `- [Code of Conduct](../CODE_OF_CONDUCT.md)\n`;
+              report += `- [Pull Request Template](../.github/PULL_REQUEST_TEMPLATE.md)\n\n`;
+
+              if (hasIssues) {
+                report += `---\n\n`;
+                report += `**Status**: ❌ Validation failed - please address the required changes above.\n`;
+              } else {
+                report += `---\n\n`;
+                report += `**Status**: ⚠️ All required checks passed, but consider the recommendations above.\n`;
+              }
+
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: pr.number,
+                body: report
+              });
+            }
+
+            // Set workflow status
+            if (hasIssues) {
+              core.setFailed('PR does not meet required contributing guidelines');
+            }
+
+      - name: Add Checklist Reminder
+        if: github.event.action == 'opened'
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const pr = context.payload.pull_request;
+            const body = pr.body || '';
+
+            // Only add checklist if PR doesn't already have one
+            if (!body.includes('- [') && !body.includes('- [ ]')) {
+              const checklist = `### 📝 Pre-submission Checklist
+
+Before merging, please ensure:
+
+- [ ] Code follows project coding standards
+- [ ] Self-reviewed code changes
+- [ ] Added comments for complex logic
+- [ ] Updated documentation for functionality changes
+- [ ] No new warnings generated
+- [ ] Tests added/updated and passing
+- [ ] Dependent changes merged and published
+
+You can check these items in your PR description or as you work through them.`;
+
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: pr.number,
+                body: checklist
+              });
+            }

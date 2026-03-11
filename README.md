@@ -1,5 +1,11 @@
 # Gravity-Lang
 
+[![Build Status](https://github.com/dill-lk/Gravity-Lang/actions/workflows/build.yml/badge.svg)](https://github.com/dill-lk/Gravity-Lang/actions)
+[![License](https://img.shields.io/github/license/dill-lk/Gravity-Lang)](LICENSE)
+[![Latest Release](https://img.shields.io/github/v/release/dill-lk/Gravity-Lang)](https://github.com/dill-lk/Gravity-Lang/releases)
+[![C++](https://img.shields.io/badge/C%2B%2B-17%2F20-blue.svg)](https://isocpp.org/)
+[![Platform](https://img.shields.io/badge/platform-Linux%20%7C%20macOS%20%7C%20Windows-lightgrey)](https://github.com/dill-lk/Gravity-Lang)
+
 ![Gravity-Lang](https://github.com/user-attachments/assets/b693ef5c-b202-4444-81c8-7d2960018253)
 
 **Gravity-Lang** is a domain-specific language for writing and running gravitational physics simulations. Describe planets, stars, rockets, and probes in plain readable syntax, then let the interpreter handle the physics — from simple two-body orbits to full N-body galaxy collisions and rocket ascent trajectories.
@@ -216,3 +222,30 @@ For optional NASA-reference accuracy checks against Earth–Moon and Mercury orb
 - **`grav all` is global:** it applies mutual attraction across all declared bodies regardless of where it appears in the script.
 - **`plot on` defaults to `Rocket`:** for other body names, use `plot on body <Name>`.
 - **Step range limits:** keep `END - START` within 32-bit integer bounds; use a larger `dt` for very long simulations instead of a large step count.
+
+---
+
+## Contributing
+
+Contributions are welcome! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines on:
+
+- Reporting bugs
+- Suggesting features
+- Submitting pull requests
+- Coding standards and testing requirements
+
+We follow a [Code of Conduct](CODE_OF_CONDUCT.md) to ensure a welcoming community for all contributors.
+
+---
+
+## License
+
+This project is licensed under the terms specified in the [LICENSE](LICENSE) file.
+
+---
+
+## Acknowledgments
+
+Gravity-Lang is an experimental project exploring domain-specific languages for scientific computing and physics simulation.
+
+For questions, discussions, or to share your simulations, feel free to [open an issue](https://github.com/dill-lk/Gravity-Lang/issues) or start a [discussion](https://github.com/dill-lk/Gravity-Lang/discussions).

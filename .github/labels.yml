@@ -1,0 +1,212 @@
+# Label Configuration for Gravity-Lang
+# This file defines all labels used in the repository
+# Labels are automatically synced by the label-sync workflow
+
+# Type labels
+- name: bug
+  color: d73a4a
+  description: Something isn't working
+
+- name: enhancement
+  color: a2eeef
+  description: New feature or request
+
+- name: documentation
+  color: 0075ca
+  description: Improvements or additions to documentation
+
+- name: question
+  color: d876e3
+  description: Further information is requested
+
+# Status labels
+- name: work-in-progress
+  color: fbca04
+  description: Work in progress, not ready for review
+
+- name: blocked
+  color: b60205
+  description: Blocked by another issue or external dependency
+
+- name: ready-for-review
+  color: 0e8a16
+  description: Ready for maintainer review
+
+- name: needs-review
+  color: fbca04
+  description: Awaiting review from maintainers
+
+- name: changes-requested
+  color: e99695
+  description: Changes have been requested
+
+- name: approved
+  color: 0e8a16
+  description: PR has been approved
+
+# Priority labels
+- name: priority-critical
+  color: b60205
+  description: Critical priority - needs immediate attention
+
+- name: priority-high
+  color: d93f0b
+  description: High priority
+
+- name: priority-medium
+  color: fbca04
+  description: Medium priority
+
+- name: priority-low
+  color: 0e8a16
+  description: Low priority
+
+# Size labels
+- name: size/XS
+  color: 3cbf00
+  description: Extra small PR (< 10 lines)
+
+- name: size/S
+  color: 5d9801
+  description: Small PR (< 50 lines)
+
+- name: size/M
+  color: 7f7203
+  description: Medium PR (< 250 lines)
+
+- name: size/L
+  color: a14c05
+  description: Large PR (< 1000 lines)
+
+- name: size/XL
+  color: c32607
+  description: Extra large PR (1000+ lines)
+
+# Category labels
+- name: cpp
+  color: f34b7d
+  description: C++ source code changes
+
+- name: examples
+  color: c5def5
+  description: Changes to example scripts
+
+- name: tests
+  color: 1d76db
+  description: Test-related changes
+
+- name: build
+  color: 0052cc
+  description: Build system changes
+
+- name: ci/cd
+  color: 006b75
+  description: CI/CD workflow changes
+
+- name: docker
+  color: 0db7ed
+  description: Docker-related changes
+
+- name: tools
+  color: 5319e7
+  description: Tools and scripts
+
+- name: dependencies
+  color: 0366d6
+  description: Dependency updates
+
+- name: performance
+  color: d4c5f9
+  description: Performance improvements
+
+- name: refactoring
+  color: fbca04
+  description: Code refactoring
+
+- name: maintenance
+  color: fef2c0
+  description: General maintenance tasks
+
+- name: breaking-change
+  color: b60205
+  description: Breaking change - major version bump required
+
+# Special labels
+- name: good-first-issue
+  color: 7057ff
+  description: Good for newcomers
+
+- name: help-wanted
+  color: 008672
+  description: Extra attention is needed
+
+- name: first-time-contributor
+  color: blueviolet
+  description: First contribution from this author
+
+- name: hacktoberfest
+  color: ff6600
+  description: Hacktoberfest eligible
+
+- name: security
+  color: ee0701
+  description: Security issue or improvement
+
+- name: duplicate
+  color: cfd3d7
+  description: This issue or pull request already exists
+
+- name: invalid
+  color: e4e669
+  description: This doesn't seem right
+
+- name: wontfix
+  color: ffffff
+  description: This will not be worked on
+
+- name: stale
+  color: eeeeee
+  description: No recent activity
+
+# Contributor milestone labels
+- name: contributor-1
+  color: ffd700
+  description: 1st merged contribution
+
+- name: contributor-5
+  color: ffa500
+  description: 5th merged contribution
+
+- name: contributor-10
+  color: ff6347
+  description: 10th merged contribution
+
+- name: contributor-25
+  color: ff1493
+  description: 25th merged contribution
+
+- name: contributor-50
+  color: 9400d3
+  description: 50th merged contribution
+
+# Version bump labels
+- name: version:major
+  color: b60205
+  description: Major version bump (breaking changes)
+
+- name: version:minor
+  color: 0e8a16
+  description: Minor version bump (new features)
+
+- name: version:patch
+  color: fbca04
+  description: Patch version bump (bug fixes)
+
+# Configuration labels
+- name: configuration
+  color: ededed
+  description: Configuration file changes
+
+- name: github-templates
+  color: 7057ff
+  description: GitHub template changes

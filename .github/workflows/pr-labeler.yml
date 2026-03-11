@@ -1,0 +1,155 @@
+name: Auto Label PRs
+
+on:
+  pull_request:
+    types: [opened, edited, synchronize, reopened]
+
+permissions:
+  pull-requests: write
+  contents: read
+
+jobs:
+  label-pr:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Auto-label based on files changed
+        uses: actions/labeler@v5
+        with:
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+          configuration-path: .github/labeler.yml
+
+      - name: Label based on PR size
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const pr = context.payload.pull_request;
+            const additions = pr.additions;
+            const deletions = pr.deletions;
+            const total = additions + deletions;
+
+            // Remove existing size labels
+            const existingLabels = pr.labels.map(label => label.name);
+            const sizeLabels = ['size/XS', 'size/S', 'size/M', 'size/L', 'size/XL'];
+
+            for (const label of sizeLabels) {
+              if (existingLabels.includes(label)) {
+                await github.rest.issues.removeLabel({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: pr.number,
+                  name: label
+                });
+              }
+            }
+
+            // Add appropriate size label
+            let sizeLabel = 'size/XL';
+            if (total < 10) sizeLabel = 'size/XS';
+            else if (total < 50) sizeLabel = 'size/S';
+            else if (total < 250) sizeLabel = 'size/M';
+            else if (total < 1000) sizeLabel = 'size/L';
+
+            await github.rest.issues.addLabels({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: pr.number,
+              labels: [sizeLabel]
+            });
+
+            console.log(`Added label: ${sizeLabel} (${total} lines changed)`);
+
+      - name: Label based on PR title
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const pr = context.payload.pull_request;
+            const title = pr.title.toLowerCase();
+            const labels = [];
+
+            // Conventional commits style detection
+            if (title.startsWith('feat:') || title.startsWith('feature:')) {
+              labels.push('enhancement');
+            } else if (title.startsWith('fix:') || title.startsWith('bugfix:')) {
+              labels.push('bug');
+            } else if (title.startsWith('docs:') || title.startsWith('documentation:')) {
+              labels.push('documentation');
+            } else if (title.startsWith('test:') || title.startsWith('tests:')) {
+              labels.push('tests');
+            } else if (title.startsWith('refactor:')) {
+              labels.push('refactoring');
+            } else if (title.startsWith('perf:') || title.startsWith('performance:')) {
+              labels.push('performance');
+            } else if (title.startsWith('chore:')) {
+              labels.push('maintenance');
+            } else if (title.startsWith('ci:')) {
+              labels.push('ci/cd');
+            } else if (title.startsWith('build:')) {
+              labels.push('build');
+            }
+
+            // Add WIP label if title contains WIP, [WIP], or Draft
+            if (title.includes('wip') || title.includes('[wip]') || pr.draft) {
+              labels.push('work-in-progress');
+            }
+
+            // Breaking change detection
+            if (title.includes('breaking') || title.includes('!:')) {
+              labels.push('breaking-change');
+            }
+
+            if (labels.length > 0) {
+              await github.rest.issues.addLabels({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: pr.number,
+                labels: labels
+              });
+              console.log(`Added labels: ${labels.join(', ')}`);
+            }
+
+      - name: Check if first-time contributor
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const author = context.payload.pull_request.user.login;
+
+            // Get all merged PRs from this author
+            const { data: prs } = await github.rest.pulls.list({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'closed',
+              per_page: 100
+            });
+
+            const authorPRs = prs.filter(pr =>
+              pr.user.login === author &&
+              pr.merged_at !== null &&
+              pr.number !== context.payload.pull_request.number
+            );
+
+            if (authorPRs.length === 0) {
+              await github.rest.issues.addLabels({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.payload.pull_request.number,
+                labels: ['first-time-contributor']
+              });
+
+              // Add a welcoming comment
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.payload.pull_request.number,
+                body: `🎉 Thank you for your first contribution to Gravity-Lang! We're excited to have you as part of our community.\n\nPlease make sure:\n- Your PR follows our [Contributing Guidelines](../CONTRIBUTING.md)\n- All tests pass\n- Your code follows the project's coding standards\n\nA maintainer will review your PR soon. Welcome aboard! 🚀`
+              });
+
+              console.log('Added first-time-contributor label and welcome comment');
+            }

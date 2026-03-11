@@ -1,0 +1,41 @@
+# Gravity-Lang GitHub Pages
+
+theme: jekyll-theme-cayman
+title: Gravity-Lang
+description: A domain-specific language for gravitational physics simulations
+show_downloads: true
+google_analytics:
+
+# Social
+github_username: dill-lk
+repository: dill-lk/Gravity-Lang
+
+# Build settings
+markdown: kramdown
+plugins:
+  - jekyll-feed
+  - jekyll-seo-tag
+
+# Collections
+collections:
+  tutorials:
+    output: true
+    permalink: /tutorials/:name
+
+# Navigation
+header_pages:
+  - docs/README.md
+  - docs/tutorials/01-first-orbit.md
+  - docs/tutorials/02-multi-body.md
+  - docs/tutorials/03-rocket-trajectories.md
+
+# Exclude from build
+exclude:
+  - Gemfile
+  - Gemfile.lock
+  - node_modules
+  - vendor
+  - build
+  - artifacts
+  - .git
+  - .github
