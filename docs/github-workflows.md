@@ -8,7 +8,37 @@ The repository uses GitHub Actions to automate various tasks including PR labeli
 
 ## Workflows
 
-### 1. PR Auto-Labeler (`pr-labeler.yml`)
+### 1. PR Guidelines Validation (`pr-validation.yml`)
+
+**Triggers**: When a PR is opened, edited, synchronized, reopened, or ready for review
+
+**What it does**:
+- **Title validation**: Checks for descriptive titles, conventional commit format, proper capitalization
+- **Description validation**: Ensures PR has adequate description with context
+- **File change validation**: Checks if documentation and tests are updated appropriately
+- **Branch name validation**: Recommends descriptive branch names
+- **Automated feedback**: Posts detailed validation report with required changes and recommendations
+- **Pre-submission checklist**: Adds checklist for new PRs
+
+**Validations**:
+- Required (❌): Empty description, very short title, pushing from main/master
+- Recommended (⚠️): Conventional commit format, documentation updates, test coverage, issue references
+
+**Example report**:
+```
+## 📋 PR Guidelines Validation Report
+
+### ❌ Required Changes
+❌ PR description is empty
+
+### ⚠️ Recommendations
+⚠️ PR title should follow conventional commit format
+⚠️ Consider adding tests for new features
+
+📖 See CONTRIBUTING.md for more information.
+```
+
+### 2. PR Auto-Labeler (`pr-labeler.yml`)
 
 **Triggers**: When a PR is opened, edited, synchronized, or reopened
 
@@ -25,7 +55,7 @@ The repository uses GitHub Actions to automate various tasks including PR labeli
 - Status: `work-in-progress`, `breaking-change`
 - Special: `first-time-contributor`
 
-### 2. Contributor Recognition (`contributor-recognition.yml`)
+### 3. Contributor Recognition (`contributor-recognition.yml`)
 
 **Triggers**: When a PR is merged or an issue is closed
 
@@ -47,7 +77,7 @@ The repository uses GitHub Actions to automate various tasks including PR labeli
 @username has reached 10 merged contributions to Gravity-Lang!
 ```
 
-### 3. PR Auto-Tag (`pr-auto-tag.yml`)
+### 4. PR Auto-Tag (`pr-auto-tag.yml`)
 
 **Triggers**: When a PR is opened, edited, synchronized, or reopened
 
@@ -71,7 +101,7 @@ This PR will result in a minor version bump:
 🎉 This adds new features - minor version will be incremented.
 ```
 
-### 4. Stale Issues and PRs (`stale.yml`)
+### 5. Stale Issues and PRs (`stale.yml`)
 
 **Triggers**: Daily at 00:00 UTC (or manual trigger)
 
@@ -83,7 +113,7 @@ This PR will result in a minor version bump:
   - Assignees
 - **Activity detection**: Removes stale label if new activity occurs
 
-### 5. Label Sync (`label-sync.yml`)
+### 6. Label Sync (`label-sync.yml`)
 
 **Triggers**:
 - When `.github/labels.yml` is updated
@@ -94,7 +124,7 @@ This PR will result in a minor version bump:
 - **Updates descriptions**: Updates label colors and descriptions
 - **Preserves existing**: Doesn't delete labels not in the config file
 
-### 6. Build and Release (`build.yml`)
+### 7. Build and Release (`build.yml`)
 
 **Note**: This workflow already existed in the repository.
 
