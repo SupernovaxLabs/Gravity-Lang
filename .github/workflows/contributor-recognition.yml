@@ -35,15 +35,9 @@ jobs:
 
             let message = '';
             if (isFirstTime) {
-              message = `🎉 Congratulations @${author} on your first merged contribution to Gravity-Lang!
-
-This is a significant milestone, and we're grateful for your contribution. We hope this is the first of many!
-
-🌟 You're now officially part of the Gravity-Lang community. Thank you for helping make this project better!`;
+              message = `🎉 Congratulations @${author} on your first merged contribution to Gravity-Lang!\n\nThis is a significant milestone, and we're grateful for your contribution. We hope this is the first of many!\n\n🌟 You're now officially part of the Gravity-Lang community. Thank you for helping make this project better!`;
             } else {
-              message = `✨ Thank you @${author} for your contribution to Gravity-Lang!
-
-Your work in PR #${prNumber} has been merged and will be part of the next release. We appreciate your continued support! 🚀`;
+              message = `✨ Thank you @${author} for your contribution to Gravity-Lang!\n\nYour work in PR #${prNumber} has been merged and will be part of the next release. We appreciate your continued support! 🚀`;
             }
 
             await github.rest.issues.createComment({
@@ -119,7 +113,7 @@ Your work in PR #${prNumber} has been merged and will be part of the next releas
             const labels = issue.labels.map(l => l.name);
 
             // Only thank for issues that were actually resolved/helpful
-            if (labels.includes('bug') || labels.includes('enhancement') || labels.includes('good first issue')) {
+            if (labels.includes('bug') || labels.includes('enhancement') || labels.includes('good-first-issue')) {
               await github.rest.issues.createComment({
                 owner: context.repo.owner,
                 repo: context.repo.repo,
