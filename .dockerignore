@@ -1,0 +1,70 @@
+# Docker ignore file for Gravity-Lang
+
+# Git
+.git
+.gitignore
+.gitattributes
+
+# Build artifacts
+build/
+*.o
+*.obj
+*.so
+*.dylib
+*.dll
+*.exe
+
+# CMake
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+Makefile
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Documentation build
+_site/
+.jekyll-cache/
+.sass-cache/
+Gemfile.lock
+
+# Output artifacts
+artifacts/*.csv
+artifacts/*.svg
+artifacts/*.json
+*.csv
+*.svg
+
+# GitHub
+.github/
+
+# Docs (include in image as examples)
+# docs/
+
+# Keep examples lightweight
+# examples/
+
+# Package manager
+node_modules/
+vendor/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+venv/
+env/
+
+# Temporary files
+*.tmp
+*.log
+*.bak
+.cache/

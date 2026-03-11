@@ -1,0 +1,47 @@
+# Docker Compose for Gravity-Lang Development
+# Provides a complete development environment with volume mounts
+
+version: '3.8'
+
+services:
+  gravity-dev:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: gravity-lang:dev
+    container_name: gravity-lang-dev
+    volumes:
+      - .:/workspace:rw
+      - ./artifacts:/workspace/artifacts:rw
+    working_dir: /workspace
+    entrypoint: ["/bin/bash"]
+    stdin_open: true
+    tty: true
+
+  gravity-run:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: gravity-lang:latest
+    volumes:
+      - .:/workspace:ro
+      - ./artifacts:/workspace/artifacts:rw
+    working_dir: /workspace
+    command: ["--help"]
+
+# Usage Examples:
+#
+# 1. Interactive development shell:
+#    docker-compose run --rm gravity-dev
+#
+# 2. Run a simulation:
+#    docker-compose run --rm gravity-run run /workspace/my_sim.gravity
+#
+# 3. Check a script:
+#    docker-compose run --rm gravity-run check /workspace/my_sim.gravity
+#
+# 4. Build with fresh environment:
+#    docker-compose build --no-cache
+#
+# 5. Clean up:
+#    docker-compose down -v
