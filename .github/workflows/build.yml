@@ -204,6 +204,8 @@ jobs:
           fi
 
           cat > release_notes.md << 'EOMD'
+          ![Gravity-Lang](https://github.com/user-attachments/assets/b693ef5c-b202-4444-81c8-7d2960018253)
+
           ## 🪐 Gravity-Lang Release TAG_PLACEHOLDER
 
           ### 📦 What's New
