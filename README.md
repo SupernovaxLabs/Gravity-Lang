@@ -1,161 +1,216 @@
-# Gravity-Lang (C++ Interpreter Rebuild)
+# Gravity-Lang
 
-This repository is being rebuilt around a **native C++ interpreter** for Gravity-Lang.
+**Gravity-Lang** is a domain-specific language for writing and running gravitational physics simulations. Describe planets, stars, rockets, and probes in plain readable syntax, then let the interpreter handle the physics — from simple two-body orbits to full N-body galaxy collisions and rocket ascent trajectories.
 
+The interpreter is built in native C++ for performance, supports multiple numerical integrators, and outputs CSV telemetry and animated SVG plots without any external dependencies.
 
-## Build
+---
+
+## Table of Contents
+
+- [Features](#features)
+- [Getting Started](#getting-started)
+  - [Build](#build)
+  - [Run your first simulation](#run-your-first-simulation)
+- [Writing Gravity-Lang scripts](#writing-gravity-lang-scripts)
+  - [Declaring bodies](#declaring-bodies)
+  - [Setting velocities](#setting-velocities)
+  - [Gravity rules](#gravity-rules)
+  - [Running a simulation](#running-a-simulation)
+  - [Outputs and diagnostics](#outputs-and-diagnostics)
+- [Examples](#examples)
+- [CLI reference](#cli-reference)
+- [Testing](#testing)
+- [Tips and common pitfalls](#tips-and-common-pitfalls)
+
+---
+
+## Features
+
+- **Readable DSL** — scripts read like plain descriptions of a physical scenario.
+- **Multiple integrators** — `euler`, `verlet`, `leapfrog`, `rk4`, `yoshida4`, `rk45` (adaptive).
+- **Flexible gravity models** — Newtonian, MOND, and GR correction modes.
+- **Rocketry support** — fuel mass, burn rate, ISP, drag, throttle control, gravity turns, and staging events.
+- **N-body simulations** — `grav all` enables full mutual attraction across every declared body.
+- **Data export** — per-body CSV telemetry, full-state dumps, and native C++ animated SVG plots.
+- **Checkpointing** — save and resume simulation state at any step.
+- **Multithreading** — optional parallel force accumulation via `threads N|auto`.
+- **Physics monitoring** — track energy, momentum, and angular momentum conservation.
+
+---
+
+## Getting Started
+
+### Build
+
+Gravity-Lang requires CMake and a C++17 compiler (GCC or Clang on Linux/macOS, MSVC on Windows).
 
 ```bash
 cmake -S . -B build
 cmake --build build -j
 ```
 
-## Run
+This produces two binaries inside `build/`:
+
+| Binary | Purpose |
+|---|---|
+| `gravity` | Runs and interprets `.gravity` scripts |
+| `gravityc` | Emits C++ source from a `.gravity` script |
+
+> **Windows note:** unsigned executables may be blocked by SmartScreen. If you see "Access is denied", right-click the EXE → Properties → Unblock, or run `Unblock-File gravity.exe` in PowerShell.
+
+### Run your first simulation
 
 ```bash
 ./build/gravity run examples/moon_orbit.gravity
-
-# Run rocket testing demo
-./build/gravity run examples/rocket_testing.gravity
-
-# Run single-file full feature showcase
-./build/gravity run examples/all_features_one.gravity
-
-# Generate native C++ telemetry report from `plot on` (example output path)
-# artifacts/telemetry_Rocket.svg
 ```
 
-> Windows note: unsigned EXEs can be blocked by SmartScreen/Defender ("Access is denied").
-> If needed: right-click EXE -> Properties -> Unblock, or run `Unblock-File` in PowerShell, or code-sign the build.
-> `plot on` now uses native C++ animated SVG output (`artifacts/telemetry_<Body>.svg`) with no Python process launch.
+This simulates the Earth–Moon system for one lunar month and prints the Moon's position at each hour-long step. Output CSV data is written to `moon_orbit.csv`.
 
-## Test
+---
 
-```bash
-cd build
-ctest --output-on-failure
+## Writing Gravity-Lang scripts
 
-# Optional: run NASA-reference sanity checks for Earth-Moon and Mercury
-./tools/validate_against_nasa.sh --strict
-```
+A `.gravity` script has four main parts: declare bodies, configure interactions, add outputs, and run the simulation.
 
-## Binaries
+### Declaring bodies
 
-- `gravity`: C++ interpreter/runtime.
-- `gravityc`: C++ source emitter/compiler utility.
-
-## CLI quick reference
-
-```bash
-# Run a simulation
-./build/gravity run examples/moon_orbit.gravity
-
-# Run rocket testing demo
-./build/gravity run examples/rocket_testing.gravity
-
-# Run single-file full feature showcase
-./build/gravity run examples/all_features_one.gravity
-
-# Generate native C++ telemetry report from `plot on` (example output path)
-# artifacts/telemetry_Rocket.svg
-
-# Dump all bodies each step to CSV
-./build/gravity run examples/moon_orbit.gravity --dump-all=artifacts/dump_all.csv
-
-# Resume from a saved checkpoint
-./build/gravity run examples/moon_orbit.gravity --resume artifacts/checkpoint.json
-
-# Validate/parse script without running physics
-./build/gravity check examples/moon_orbit.gravity --strict
-
-# Show supported runtime features from the binary
-./build/gravity list-features
-
-# View CLI banner/help (includes ENGINE v3.0 ASCII banner)
-./build/gravity --help
-./build/gravityc --help
-
-# Emit C++ from a Gravity script
-./build/gravityc examples/moon_orbit.gravity --emit moon.cpp --strict
-```
-
-## Writing Gravity-Lang syntax (quick start)
-
-Use this template when writing new `.gravity` scripts:
+Three body types are available: `sphere`, `probe`, and `rocket`.
 
 ```gravity
-# 1) Declare bodies
-sphere Earth at [0,0,0][m] mass 5.972e24[kg] radius 6371[km] fixed
+sphere Earth at [0,0,0][m]       mass 5.972e24[kg] radius 6371[km] fixed
 sphere Moon  at [384400,0,0][km] mass 7.348e22[kg] radius 1737[km]
+rocket Rocket at [0,6371000,0][m] mass 30000[kg]   radius 3[m]
+```
 
-# 2) Set optional properties
-Moon.velocity = [0,1.022,0][km/s]
+- `fixed` keeps a body stationary (useful for a central reference body like Earth).
+- Coordinates accept unit tags: `[m]`, `[km]`.
+- Mass is always in `[kg]`; radius accepts `[m]` or `[km]`.
 
-# 3) Add diagnostics/outputs (optional)
-orbital_elements Moon around Earth
-observe Moon.position to "artifacts/moon.csv" frequency 1
-plot on body Moon
+### Setting velocities
 
-# 4) Run simulation (steps are END-START)
-simulate orbit in 0..240 dt 3600[s] integrator rk45 {
+```gravity
+Moon.velocity = [0, 1.022, 0][km/s]
+```
+
+Velocity components are `[x, y, z]` and accept `[m/s]` or `[km/s]`.
+
+### Gravity rules
+
+```gravity
+# Apply mutual gravity between all bodies
+grav all
+
+# Or specify explicit targets (comma-separated)
+Earth pull Moon
+MilkyWay_Core pull StarA1, StarA2, StarA3
+```
+
+### Running a simulation
+
+```gravity
+simulate orbit in 0..720 dt 3600[s] integrator rk45 {
     grav all
     print Moon.position
 }
 ```
 
-### Core syntax rules
+- `0..720` means 720 steps (not 720 seconds — total time is `steps × dt`).
+- `dt 3600[s]` sets each step to one hour.
+- The integrator can be `euler`, `verlet`, `leapfrog`, `rk4`, `yoshida4`, or `rk45`.
 
-- **Body declarations:** `sphere|probe|rocket Name at [x,y,z][unit] mass M[kg] radius R[unit] [velocity ...] [fixed]`.
-- **Velocity assignment:** `Body.velocity = [vx,vy,vz][m/s|km/s]`.
-- **Gravity rules:** use `grav all` for full N-body pull, or `A pull B, C` for explicit targets.
-- **Simulation loop:** `simulate|orbit <label> in START..END dt VALUE[time_unit] integrator <name> { ... }`.
-- **Orbital diagnostics:** always include a center body: `orbital_elements Body around Center`.
+### Outputs and diagnostics
 
-### Adding new code safely
+```gravity
+# Print orbital elements at any point
+orbital_elements Moon around Earth
 
-1. Start from an existing example in `examples/` and rename it.
-2. Run strict parser checks first:
-   - `./build/gravity check your_script.gravity --strict`
-3. Then run the simulation:
-   - `./build/gravity run your_script.gravity`
-4. If needed, export data for analysis:
-   - `dump_all to "artifacts/dump.csv" frequency 1`
-   - `observe Body.position to "artifacts/body_pos.csv" frequency 10`
+# Stream position data to CSV
+observe Moon.position to "artifacts/moon.csv" frequency 1
 
-## Implemented runtime features (ported toward Python parity)
+# Dump all body states every 10 steps
+dump_all to "artifacts/all.csv" frequency 10
 
-- Object declarations: `sphere`, `probe`, and `rocket`
-- Units: `m`, `km`, `s`, `min`, `hour`, `day`, `kg`, `m/s`, `km/s`
-- `radius`, `mass`, `velocity`, and `fixed` parsing
-- Velocity assignment: `Body.velocity = [...]`
-- Simulation loops: `simulate` / `orbit`
-- Integrators: `euler`, `verlet`, `leapfrog`, `rk4`, `yoshida4`, `rk45`
-- Gravity rules: `grav all`, `A pull B, C`, and `step_physics(A,B)`
-- Gravity tuning: `gravity_constant`, `gravity_model newtonian|mond|gr_correction`
-- Performance scaling: optional multithreaded force accumulation via `threads N|auto`, `threading min_interactions N`, or `GRAVITY_THREADS` environment variable (with reused per-thread buffers to reduce allocator overhead and a reusable low-contention thread-pool scheduler)
-- Runtime actions: `thrust`, `event step N thrust Body by [...]`, `radiation_pressure Body by [ax,ay,az][m/s2]`, `friction`, `collisions on|off|merge`, `monitor energy`, `monitor momentum`, `monitor angular_momentum`, `verbose on|off`, `save "checkpoint.json" frequency N`, `resume "checkpoint.json"`, `sensitivity Body mass P%`, `merge_heat F`, `print ...position|velocity`, `profile on|off`, plus rocketry fields (`Body.dry_mass`, `Body.fuel_mass`, `Body.burn_rate`, `Body.max_thrust`, `Body.isp_sea_level`, `Body.isp_vacuum`, `Body.drag_coefficient`, `Body.cross_section`, `Body.throttle`, `throttle Body to maintain velocity V[m/s]`, `gravity_turn Body start A[m|km] end B[m|km] final_pitch DEG`) and staging (`event step N detach Stage from Rocket`)
-- CSV export: `observe Body.position|velocity to "file" frequency N`, `dump_all to "file" frequency N`, DSL dashboard hook `plot on [body Name]`, and CLI `--dump-all[=file]` (output folders are auto-created if missing; animated native C++ SVG is generated automatically with `dump_all` unless `plot off` is explicitly set).
-- Orbital diagnostics: `orbital_elements Body around Center`
-- Confidence scores: adaptive runs print `confidence.score=...` based on timestep headroom and energy drift
+# Generate an animated SVG telemetry plot
+plot on body Moon
 
-## Notes
+# Save a checkpoint you can resume later
+save "artifacts/checkpoint.json" frequency 50
+```
 
-- This is an active port from the former Python implementation; unsupported DSL lines are still warned and skipped.
-- Current focus is interpreter capability expansion and compatibility with existing `.gravity` scripts.
-- CI prerelease tags: non-versioned CI publishes unique tags in the form `main-build-YYYYMMDD-HHMMSS-rRUN_NUMBER` to keep each release artifact set separate over time.
+---
 
+## Examples
 
-## Benchmark setup notes
+The `examples/` directory contains ready-to-run scripts:
 
-- **Binary systems:** initialize both primaries from their mutual COM, not hardcoded guessed speeds. For separation `r`, use `omega = sqrt(G*(m1+m2)/r^3)`, then `v1 = omega*r*m2/(m1+m2)` and `v2 = omega*r*m1/(m1+m2)` in opposite tangential directions.
-- **MOND galaxy tests:** for deep-MOND circular initialization, seed stars near `v_flat = (G*M*a0)^(1/4)` and then adjust for your chosen radius profile.
-- **Rocket ascent tests:** treat gravity-turn and throttle schedules as trajectory design inputs; reaching orbit generally requires early pitch-over plus enough sustained horizontal burn time.
+| Script | What it demonstrates |
+|---|---|
+| `moon_orbit.gravity` | Earth–Moon two-body orbit |
+| `rocket_testing.gravity` | Two-stage rocket ascent with gravity turn |
+| `galaxy_collision.gravity` | Two-galaxy N-body collision |
+| `binary_star.gravity` | Binary star system |
+| `solar_system.gravity` | Multi-planet solar system |
+| `all_features_one.gravity` | Full feature showcase in a single script |
+| `integrator_comparison.gravity` | Side-by-side integrator accuracy comparison |
+| `mond_vs_newtonian.gravity` | MOND vs. Newtonian gravity comparison |
 
-## Common DSL pitfalls (quick fixes)
+Run any example with:
 
-- `orbital_elements` requires both body and center: `orbital_elements Moon around Earth`.
-- `simulate/orbit in START..END` uses `(END - START)` as the step count, not elapsed seconds. Total simulated time is `steps * dt`.
-- Extremely large step ranges can overflow internal limits; keep `END - START` within 32-bit integer bounds and use larger `dt` for long spans.
-- `Body.fuel_mass = ...` contributes to total body mass (wet mass = dry/base mass + fuel mass).
-- `grav all` now applies across all declared bodies regardless of where it appears in the script.
-- `plot on` defaults to body `Rocket`; for other names, use `plot on body Name`.
+```bash
+./build/gravity run examples/<script>.gravity
+```
+
+---
+
+## CLI reference
+
+```bash
+# Run a simulation
+./build/gravity run examples/moon_orbit.gravity
+
+# Validate a script without running physics
+./build/gravity check examples/moon_orbit.gravity --strict
+
+# Dump all body states to CSV on every step
+./build/gravity run examples/moon_orbit.gravity --dump-all=artifacts/dump.csv
+
+# Resume from a previously saved checkpoint
+./build/gravity run examples/moon_orbit.gravity --resume artifacts/checkpoint.json
+
+# List all supported runtime features
+./build/gravity list-features
+
+# Show help
+./build/gravity --help
+
+# Emit C++ source from a Gravity script
+./build/gravityc examples/moon_orbit.gravity --emit moon.cpp --strict
+./build/gravityc --help
+```
+
+---
+
+## Testing
+
+```bash
+cd build
+ctest --output-on-failure
+```
+
+For optional NASA-reference accuracy checks against Earth–Moon and Mercury orbital data:
+
+```bash
+./tools/validate_against_nasa.sh --strict
+```
+
+---
+
+## Tips and common pitfalls
+
+- **`orbital_elements` needs a center body:** always write `orbital_elements Moon around Earth`, not just `orbital_elements Moon`.
+- **Step count vs. elapsed time:** `simulate in 0..N` runs `N` steps. Total simulated time = `N × dt`. Use a larger `dt` for long spans rather than a huge step count.
+- **Fuel mass adds to total mass:** `Body.fuel_mass` is added on top of the declared body mass (wet mass = declared mass + fuel mass).
+- **`grav all` is global:** it applies mutual attraction across all declared bodies regardless of where it appears in the script.
+- **`plot on` defaults to `Rocket`:** for other body names, use `plot on body <Name>`.
+- **Step range limits:** keep `END - START` within 32-bit integer bounds; use a larger `dt` for very long simulations instead of a large step count.
