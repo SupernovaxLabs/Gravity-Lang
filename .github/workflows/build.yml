@@ -268,7 +268,9 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.release_notes.outputs.TAG_NAME }}
-          files: dist/**
+          files: |
+            dist/*.tar.gz
+            dist/*.zip
           body: ${{ steps.release_notes.outputs.RELEASE_NOTES }}
           draft: false
           prerelease: false
