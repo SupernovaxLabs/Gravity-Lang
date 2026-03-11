@@ -1,5 +1,7 @@
 # Gravity-Lang
 
+![Gravity-Lang](https://github.com/user-attachments/assets/b693ef5c-b202-4444-81c8-7d2960018253)
+
 **Gravity-Lang** is a domain-specific language for writing and running gravitational physics simulations. Describe planets, stars, rockets, and probes in plain readable syntax, then let the interpreter handle the physics — from simple two-body orbits to full N-body galaxy collisions and rocket ascent trajectories.
 
 The interpreter is built in native C++ for performance, supports multiple numerical integrators, and outputs CSV telemetry and animated SVG plots without any external dependencies.

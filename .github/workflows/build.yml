@@ -1,67 +1,102 @@
-name: Build and Publish
+name: Build Executables
 
 on:
-  push:
-    branches: [ main, master ]
-    tags: [ 'v*' ]
-  pull_request:
   workflow_dispatch:
-    inputs:
-      publish_release:
-        description: "Publish build artifacts to a GitHub Release"
-        required: false
-        default: true
-        type: boolean
-
-permissions:
-  contents: write
+  push:
+    branches:
+      - main
+      - master
+    tags:
+      - 'v*'
 
 jobs:
-  detect-changes:
-    name: Detect build-relevant changes
+  # ── 0. Auto-tag on main/master push ──────────────────────────────────
+  auto-tag:
+    name: Auto-create version tag on main/master
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master') && !startsWith(github.ref, 'refs/tags/')
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     outputs:
-      build_relevant_changed: ${{ steps.filter.outputs.build_relevant }}
+      new_tag: ${{ steps.create_tag.outputs.new_tag }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: dorny/paths-filter@v3
-        id: filter
+      - name: Checkout code
+        uses: actions/checkout@v4
         with:
-          filters: |
-            build_relevant:
-              - 'CMakeLists.txt'
-              - 'cpp/**'
-              - 'examples/**'
-              - '.github/workflows/build.yml'
+          fetch-depth: 0
 
+      - name: Get latest tag
+        id: get_latest_tag
+        run: |
+          # Get the latest tag, or default to v0.0.0 if none exist
+          LATEST_TAG=$(git tag --sort=-version:refname | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | head -n1 || true)
+          if [ -z "$LATEST_TAG" ]; then
+            LATEST_TAG="v0.0.0"
+          fi
+          echo "Latest tag: $LATEST_TAG"
+          echo "LATEST_TAG=$LATEST_TAG" >> $GITHUB_OUTPUT
+
+      - name: Calculate next version
+        id: calc_version
+        run: |
+          LATEST="${{ steps.get_latest_tag.outputs.LATEST_TAG }}"
+          VERSION=${LATEST#v}
+
+          IFS='.' read -r MAJOR MINOR PATCH <<< "$VERSION"
+          MAJOR=${MAJOR:-0}
+          MINOR=${MINOR:-0}
+          PATCH=${PATCH:-0}
+          PATCH=$((PATCH + 1))
+
+          NEW_VERSION="v${MAJOR}.${MINOR}.${PATCH}"
+          echo "New version: $NEW_VERSION"
+          echo "NEW_VERSION=$NEW_VERSION" >> $GITHUB_OUTPUT
+
+      - name: Create and push new tag
+        id: create_tag
+        run: |
+          NEW_TAG="${{ steps.calc_version.outputs.NEW_VERSION }}"
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          git tag -a "$NEW_TAG" -m "Auto-release $NEW_TAG"
+          git push origin "$NEW_TAG"
+
+          echo "Created and pushed tag: $NEW_TAG"
+          echo "new_tag=$NEW_TAG" >> $GITHUB_OUTPUT
+
+  # ── 1. Build platform-specific packages ───────────────────────────────
   build:
-    name: Build C++ runtime (${{ matrix.os }})
+    name: Build C++ runtime (${{ matrix.label }})
+    needs: [auto-tag]
+    if: always() && (needs.auto-tag.result == 'success' || needs.auto-tag.result == 'skipped')
     runs-on: ${{ matrix.os }}
-    needs: [detect-changes]
-    if: |
-      github.event_name == 'pull_request' ||
-      github.event_name == 'workflow_dispatch' ||
-      startsWith(github.ref, 'refs/tags/v') ||
-      needs.detect-changes.outputs.build_relevant_changed == 'true'
+    permissions:
+      contents: read
     strategy:
       fail-fast: false
       matrix:
         include:
           - os: ubuntu-latest
-            exe_name: gravity-linux
+            label: linux-x64
             bin_path: build/gravity
             compiler_path: build/gravityc
+            pkg_name: gravity-linux-x64
           - os: macos-latest
-            exe_name: gravity-macos
+            label: macos-x64
             bin_path: build/gravity
             compiler_path: build/gravityc
+            pkg_name: gravity-macos-x64
           - os: windows-latest
-            exe_name: gravity-windows
+            label: windows-x64
             bin_path: build/Release/gravity.exe
             compiler_path: build/Release/gravityc.exe
+            pkg_name: gravity-windows-x64
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
 
       - name: Configure (Linux/macOS)
         if: runner.os != 'Windows'
@@ -99,139 +134,143 @@ jobs:
           .\build\Release\gravityc.exe examples\moon_orbit.gravity --emit build\moon.generated.cpp --build build\moon_native.exe
           .\build\moon_native.exe
 
-      - name: Package binaries (POSIX)
+      # ── POSIX: bundle both binaries + examples in a tarball ──────────────
+      - name: Package tarball (Linux / macOS)
         if: runner.os != 'Windows'
         run: |
-          mkdir -p dist
-          cp "${{ matrix.bin_path }}" "dist/${{ matrix.exe_name }}"
-          cp "${{ matrix.compiler_path }}" "dist/gravityc-${{ runner.os }}"
+          PKG="${{ matrix.pkg_name }}"
+          mkdir -p "output/$PKG"
+          cp "${{ matrix.bin_path }}"      "output/$PKG/gravity"
+          cp "${{ matrix.compiler_path }}" "output/$PKG/gravityc"
+          cp -r examples                   "output/$PKG/examples"
+          tar -czf "output/${PKG}.tar.gz" -C output "$PKG"
 
-      - name: Package binaries (Windows)
+      # ── Windows: bundle both binaries + examples in a ZIP ────────────────
+      - name: Package ZIP (Windows)
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
-          New-Item -ItemType Directory -Force -Path dist | Out-Null
-          Copy-Item "${{ matrix.bin_path }}" "dist/${{ matrix.exe_name }}.exe"
-          Copy-Item "${{ matrix.compiler_path }}" "dist/gravityc-${{ runner.os }}.exe"
+          $pkg = "${{ matrix.pkg_name }}"
+          New-Item -ItemType Directory -Force -Path "output\$pkg" | Out-Null
+          Copy-Item "${{ matrix.bin_path }}"      "output\$pkg\gravity.exe"
+          Copy-Item "${{ matrix.compiler_path }}" "output\$pkg\gravityc.exe"
+          Copy-Item -Recurse examples             "output\$pkg\examples"
+          Compress-Archive -Path "output\$pkg" -DestinationPath "output\${pkg}.zip" -Force
 
-      - name: Generate checksums (POSIX)
-        if: runner.os != 'Windows'
-        run: |
-          cd dist
-          : > SHA256SUMS.txt
-          for file in *; do
-            [ -f "$file" ] || continue
-            [ "$file" = "SHA256SUMS.txt" ] && continue
-            cmake -E sha256sum "$file" >> SHA256SUMS.txt
-          done
-
-      - name: Generate checksums and optional signature report (Windows)
-        if: runner.os == 'Windows'
-        shell: pwsh
-        run: |
-          $dist = Resolve-Path dist
-          $exeFiles = Get-ChildItem -Path $dist -Filter *.exe
-          New-Item -Path "$dist/SHA256SUMS.txt" -ItemType File -Force | Out-Null
-
-          foreach ($exe in $exeFiles) {
-            $hash = Get-FileHash -Algorithm SHA256 -Path $exe.FullName
-            "$($hash.Hash) *$($exe.Name)" | Out-File -Append -Encoding ascii -FilePath "$dist/SHA256SUMS.txt"
-
-            if (Get-Command Get-AuthenticodeSignature -ErrorAction SilentlyContinue) {
-              $signature = Get-AuthenticodeSignature -FilePath $exe.FullName
-              $signerSubject = if ($null -ne $signature.SignerCertificate) { $signature.SignerCertificate.Subject } else { "" }
-              @(
-                "file=$($exe.Name)",
-                "status=$($signature.Status)",
-                "status_message=$($signature.StatusMessage)",
-                "signer_subject=$signerSubject"
-              ) | Out-File -Encoding utf8 -FilePath "$dist/$($exe.BaseName).signature.txt"
-            } else {
-              @(
-                "file=$($exe.Name)",
-                "status=Unknown",
-                "status_message=Get-AuthenticodeSignature is not available on this runner"
-              ) | Out-File -Encoding utf8 -FilePath "$dist/$($exe.BaseName).signature.txt"
-            }
-          }
-
-      - name: Upload runtime artifact
+      - name: Upload packaged artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ matrix.exe_name }}
-          path: dist/${{ matrix.exe_name }}*
+          name: ${{ matrix.pkg_name }}
+          path: output/
 
-      - name: Upload compiler artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: gravityc-${{ matrix.os }}
-          path: dist/gravityc-${{ runner.os }}*
-
-      - name: Upload verification metadata
-        uses: actions/upload-artifact@v4
-        with:
-          name: verification-${{ matrix.os }}
-          path: |
-            dist/SHA256SUMS.txt
-            dist/*.signature.txt
-          if-no-files-found: warn
-
+  # ── 2. Publish GitHub release ─────────────────────────────────────────
   release:
-    name: Publish GitHub Release
+    name: Create release and publish
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'))
     runs-on: ubuntu-latest
-    needs: [build, detect-changes]
-    if: |
-      github.event_name != 'pull_request' && (
-        startsWith(github.ref, 'refs/tags/v') ||
-        (github.event_name == 'push' && needs.detect-changes.outputs.build_relevant_changed == 'true') ||
-        (github.event_name == 'workflow_dispatch' && inputs.publish_release == true)
-      )
+    permissions:
+      contents: write
 
     steps:
-      - name: Download build artifacts
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Download all packaged artifacts
         uses: actions/download-artifact@v4
         with:
-          path: release-artifacts
+          path: dist
+          pattern: gravity-*
+          merge-multiple: true
 
-      - name: Flatten release assets
+      - name: Generate release notes
+        id: release_notes
         run: |
-          mkdir -p release-assets
-          find release-artifacts -type f -maxdepth 4 -print0 | while IFS= read -r -d '' file; do
-            cp "$file" "release-assets/$(basename "$file")"
-          done
-          ls -la release-assets
-
-      - name: Set release metadata
-        id: release_meta
-        run: |
-          if [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
-            echo "tag=${GITHUB_REF#refs/tags/}" >> "$GITHUB_OUTPUT"
-            echo "name=Gravity-Lang ${GITHUB_REF#refs/tags/}" >> "$GITHUB_OUTPUT"
-            echo "prerelease=false" >> "$GITHUB_OUTPUT"
-            echo "make_latest=true" >> "$GITHUB_OUTPUT"
+          # Determine tag name
+          if [[ "$GITHUB_REF" == refs/tags/* ]]; then
+            TAG_NAME=${GITHUB_REF#refs/tags/}
           else
-            TS="$(date -u +%Y%m%d-%H%M%S)"
-            UNIQUE_TAG="main-build-${TS}-r${GITHUB_RUN_NUMBER}"
-            echo "tag=${UNIQUE_TAG}" >> "$GITHUB_OUTPUT"
-            echo "name=Gravity-Lang Main Build ${TS}" >> "$GITHUB_OUTPUT"
-            echo "prerelease=true" >> "$GITHUB_OUTPUT"
-            echo "make_latest=false" >> "$GITHUB_OUTPUT"
+            TAG_NAME=$(git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.0-dev-$(date +%Y%m%d)")
           fi
 
-      - name: Create or update release
-        uses: ncipollo/release-action@v1
-        with:
-          tag: ${{ steps.release_meta.outputs.tag }}
-          name: ${{ steps.release_meta.outputs.name }}
-          artifactErrorsFailBuild: true
-          allowUpdates: true
-          updateOnlyUnreleased: false
-          prerelease: ${{ steps.release_meta.outputs.prerelease }}
-          makeLatest: ${{ steps.release_meta.outputs.make_latest }}
-          artifacts: "release-assets/*"
-          body: |
-            Automated C++ build artifacts from CI.
+          PREV_TAG=$(git tag --sort=-version:refname | grep -A1 "^${TAG_NAME}$" | tail -n1)
 
-            - Commit: ${{ github.sha }}
-            - Workflow: ${{ github.workflow }}
-            - Run: ${{ github.run_id }}
+          if [ -n "$PREV_TAG" ] && [ "$PREV_TAG" != "$TAG_NAME" ]; then
+            CHANGELOG=$(git log ${PREV_TAG}..HEAD --pretty=format:"- %s (%h)" --no-merges)
+          else
+            CHANGELOG=$(git log HEAD --pretty=format:"- %s (%h)" --no-merges | head -n 20)
+          fi
+
+          cat > release_notes.md << 'EOMD'
+          ![Gravity-Lang](https://github.com/user-attachments/assets/b693ef5c-b202-4444-81c8-7d2960018253)
+
+          ## 🪐 Gravity-Lang Release TAG_PLACEHOLDER
+
+          ### 📦 What's New
+
+          CHANGELOG_PLACEHOLDER
+
+          ### 📥 Download
+
+          | Platform | File | Notes |
+          |---|---|---|
+          | **Linux** | `gravity-linux-x64.tar.gz` | `gravity` interpreter + `gravityc` compiler + examples |
+          | **macOS** | `gravity-macos-x64.tar.gz` | `gravity` interpreter + `gravityc` compiler + examples |
+          | **Windows** | `gravity-windows-x64.zip` | `gravity.exe` + `gravityc.exe` + examples |
+
+          ### 🚀 Quick Start
+
+          **Linux / macOS:**
+          ```bash
+          tar -xzf gravity-linux-x64.tar.gz
+          cd gravity-linux-x64
+          ./gravity run examples/moon_orbit.gravity
+          ```
+
+          **Windows:**
+          ```powershell
+          Expand-Archive gravity-windows-x64.zip .
+          cd gravity-windows-x64
+          .\gravity.exe run examples\moon_orbit.gravity
+          ```
+
+          ### ⚙️ Build from source
+
+          ```bash
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+          cmake --build build -j
+          ./build/gravity run examples/solar_system.gravity
+          ```
+
+          See the [README](https://github.com/dill-lk/Gravity-Lang#readme) for full documentation.
+          EOMD
+
+          VERSION=${TAG_NAME#v}
+          sed -i "s/TAG_PLACEHOLDER/$TAG_NAME/g" release_notes.md
+          sed -i "s/VERSION/$VERSION/g"          release_notes.md
+
+          python3 - "$CHANGELOG" << 'PYEOF'
+          import sys, pathlib
+          changelog = sys.argv[1]
+          content   = pathlib.Path("release_notes.md").read_text()
+          content   = content.replace("CHANGELOG_PLACEHOLDER", changelog or "- Internal improvements")
+          pathlib.Path("release_notes.md").write_text(content)
+          PYEOF
+
+          echo "TAG_NAME=$TAG_NAME" >> $GITHUB_OUTPUT
+          echo "RELEASE_NOTES<<EOF" >> $GITHUB_OUTPUT
+          cat release_notes.md     >> $GITHUB_OUTPUT
+          echo "EOF"               >> $GITHUB_OUTPUT
+
+      - name: Create GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.release_notes.outputs.TAG_NAME }}
+          files: dist/**
+          body: ${{ steps.release_notes.outputs.RELEASE_NOTES }}
+          draft: false
+          prerelease: false
+          generate_release_notes: true
+          make_latest: true
