@@ -246,6 +246,8 @@ This project is licensed under the terms specified in the [LICENSE](LICENSE) fil
 
 ## Acknowledgments
 
-Gravity-Lang is an experimental project exploring domain-specific languages for scientific computing and physics simulation.
+Gravity-Lang is created and maintained by [@dill-lk](https://github.com/dill-lk).
+
+This project is an experimental exploration of domain-specific languages for scientific computing and physics simulation.
 
 For questions, discussions, or to share your simulations, feel free to [open an issue](https://github.com/dill-lk/Gravity-Lang/issues) or start a [discussion](https://github.com/dill-lk/Gravity-Lang/discussions).

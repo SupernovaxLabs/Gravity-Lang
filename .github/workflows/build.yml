@@ -245,6 +245,10 @@ jobs:
           ```
 
           See the [README](https://github.com/dill-lk/Gravity-Lang#readme) for full documentation.
+
+          ### 🙌 Maintainer
+
+          Gravity-Lang is created and maintained by [@dill-lk](https://github.com/dill-lk).
           EOMD
 
           VERSION=${TAG_NAME#v}

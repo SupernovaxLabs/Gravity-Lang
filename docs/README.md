@@ -65,6 +65,7 @@ Check out advanced topics:
 ## Community
 
 - [Contributing Guide](../CONTRIBUTING.md)
+- [Contributors](../CONTRIBUTORS.md)
 - [Code of Conduct](../CODE_OF_CONDUCT.md)
 - [GitHub Issues](https://github.com/dill-lk/Gravity-Lang/issues)
 - [GitHub Discussions](https://github.com/dill-lk/Gravity-Lang/discussions)
