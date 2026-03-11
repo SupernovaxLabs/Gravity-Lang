@@ -141,7 +141,7 @@
   description: Extra attention is needed
 
 - name: first-time-contributor
-  color: blueviolet
+  color: 8a2be2
   description: First contribution from this author
 
 - name: hacktoberfest
