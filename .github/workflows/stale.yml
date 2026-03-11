@@ -1,0 +1,75 @@
+name: Stale Issues and PRs
+
+on:
+  schedule:
+    # Run daily at 00:00 UTC
+    - cron: '0 0 * * *'
+  workflow_dispatch:
+
+permissions:
+  issues: write
+  pull-requests: write
+
+jobs:
+  stale:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/stale@v9
+        with:
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+
+          # Days before marking as stale
+          days-before-stale: 60
+          days-before-close: 14
+
+          # Issue configuration
+          stale-issue-message: |
+            👋 This issue has been automatically marked as stale because it has not had activity in the last 60 days.
+
+            It will be closed in 14 days if no further activity occurs. If this issue is still relevant, please:
+            - Add a comment to keep it open
+            - Remove the `stale` label
+            - Update the issue with current information
+
+            Thank you for your contributions to Gravity-Lang! 🚀
+
+          close-issue-message: |
+            🔒 This issue has been automatically closed due to inactivity.
+
+            If you believe this issue is still relevant, please feel free to reopen it or create a new issue with updated information.
+
+            Thank you for your understanding!
+
+          stale-issue-label: 'stale'
+          exempt-issue-labels: 'pinned,security,help-wanted,good-first-issue'
+
+          # PR configuration
+          stale-pr-message: |
+            👋 This pull request has been automatically marked as stale because it has not had activity in the last 60 days.
+
+            It will be closed in 14 days if no further activity occurs. If this PR is still being worked on, please:
+            - Add a comment to keep it open
+            - Push new commits
+            - Remove the `stale` label
+            - Request a review
+
+            Thank you for your contribution! 🙏
+
+          close-pr-message: |
+            🔒 This pull request has been automatically closed due to inactivity.
+
+            If you'd like to continue working on this, please feel free to reopen it or submit a new PR.
+
+            Thank you for your contribution!
+
+          stale-pr-label: 'stale'
+          exempt-pr-labels: 'pinned,work-in-progress,blocked'
+
+          # Operations limit
+          operations-per-run: 100
+
+          # Remove stale label when there's activity
+          remove-stale-when-updated: true
+
+          # Only mark as stale if no assignee
+          exempt-all-assignees: true

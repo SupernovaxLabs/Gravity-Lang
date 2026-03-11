@@ -1,0 +1,57 @@
+# Configuration for path-based labeling
+# See: https://github.com/actions/labeler
+
+# Documentation changes
+documentation:
+  - changed-files:
+    - any-glob-to-any-file: ['docs/**/*', '*.md', 'README.md', 'CONTRIBUTING.md']
+
+# C++ source code
+cpp:
+  - changed-files:
+    - any-glob-to-any-file: ['cpp/**/*.cpp', 'cpp/**/*.h', 'cpp/**/*.hpp']
+
+# Examples
+examples:
+  - changed-files:
+    - any-glob-to-any-file: ['examples/**/*.gravity']
+
+# Build system
+build:
+  - changed-files:
+    - any-glob-to-any-file: ['CMakeLists.txt', 'cmake/**/*']
+
+# CI/CD
+ci/cd:
+  - changed-files:
+    - any-glob-to-any-file: ['.github/workflows/**/*', '.github/actions/**/*']
+
+# Docker
+docker:
+  - changed-files:
+    - any-glob-to-any-file: ['Dockerfile', 'docker-compose.yml', '.dockerignore']
+
+# Tests
+tests:
+  - changed-files:
+    - any-glob-to-any-file: ['tests/**/*', 'test/**/*']
+
+# Tools and scripts
+tools:
+  - changed-files:
+    - any-glob-to-any-file: ['tools/**/*', 'scripts/**/*']
+
+# Dependencies
+dependencies:
+  - changed-files:
+    - any-glob-to-any-file: ['**/package.json', '**/requirements.txt', '**/Gemfile', 'Formula/**/*']
+
+# GitHub templates
+github-templates:
+  - changed-files:
+    - any-glob-to-any-file: ['.github/ISSUE_TEMPLATE/**/*', '.github/PULL_REQUEST_TEMPLATE.md']
+
+# Configuration files
+configuration:
+  - changed-files:
+    - any-glob-to-any-file: ['_config.yml', '.gitignore', '.dockerignore', '*.yml', '*.yaml']
