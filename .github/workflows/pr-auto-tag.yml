@@ -83,6 +83,27 @@ jobs:
 
             // Add version label to PR
             const versionLabel = `version:${bumpType}`;
+            try {
+              // Remove old version labels before adding new one
+              const { data: currentLabels } = await github.rest.issues.listLabelsOnIssue({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: pr.number
+              });
+              const oldVersionLabels = currentLabels
+                .map(l => l.name)
+                .filter(n => n.startsWith('version:') && n !== versionLabel);
+              for (const old of oldVersionLabels) {
+                await github.rest.issues.removeLabel({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: pr.number,
+                  name: old
+                });
+              }
+            } catch (e) {
+              console.log('Could not clean old version labels:', e.message);
+            }
             await github.rest.issues.addLabels({
               owner: context.repo.owner,
               repo: context.repo.repo,
@@ -90,19 +111,47 @@ jobs:
               labels: [versionLabel]
             });
 
-            // Add comment with version info
+            // Add / update version impact comment
             const versionEmoji = bumpType === 'major' ? '🚨' : bumpType === 'minor' ? '✨' : '🔧';
 
             const majorNote = bumpType === 'major' ? '⚠️ This is a **breaking change** - major version will be incremented.' : '';
             const minorNote = bumpType === 'minor' ? '🎉 This adds new features - minor version will be incremented.' : '';
             const patchNote = bumpType === 'patch' ? '🐛 This is a fix or minor improvement - patch version will be incremented.' : '';
 
-            await github.rest.issues.createComment({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issue_number: pr.number,
-              body: `${versionEmoji} **Version Impact**\n\nThis PR will result in a **${bumpType}** version bump:\n- Current version: \`${latestTag}\`\n- Next version (if merged): \`${nextVersion}\`\n\n${majorNote}${minorNote}${patchNote}`
-            });
+            const MARKER = '<!-- pr-auto-tag-bot -->';
+            const commentBody = MARKER + '\n' + `${versionEmoji} **Version Impact**\n\nThis PR will result in a **${bumpType}** version bump:\n- Current version: \`${latestTag}\`\n- Next version (if merged): \`${nextVersion}\`\n\n${majorNote}${minorNote}${patchNote}`;
+
+            let existing = null;
+            let page = 1;
+            while (!existing) {
+              const { data: comments } = await github.rest.issues.listComments({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: pr.number,
+                per_page: 100,
+                page: page
+              });
+              if (comments.length === 0) break;
+              existing = comments.find(c => c.user.type === 'Bot' && c.body.includes(MARKER)) || null;
+              if (comments.length < 100) break;
+              page++;
+            }
+
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existing.id,
+                body: commentBody
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: pr.number,
+                body: commentBody
+              });
+            }
 
             return {
               current: latestTag,

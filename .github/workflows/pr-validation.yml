@@ -234,14 +234,9 @@ jobs:
             const hasIssues = allIssues.length > 0;
             const hasWarnings = allWarnings.length > 0;
 
+            let commentBody = '';
             if (!hasIssues && !hasWarnings) {
-              // PR follows guidelines - add a positive comment
-              await github.rest.issues.createComment({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                issue_number: pr.number,
-                body: '✅ **PR Guidelines Validation Passed**\n\nThis PR follows all required contributing guidelines! Thank you for following best practices.\n\n📖 See [CONTRIBUTING.md](../CONTRIBUTING.md) for more information.'
-              });
+              commentBody = '✅ **PR Guidelines Validation Passed**\n\nThis PR follows all required contributing guidelines! Thank you for following best practices.\n\n📖 See [CONTRIBUTING.md](../CONTRIBUTING.md) for more information.';
             } else {
               // Generate detailed report
               let report = `## 📋 PR Guidelines Validation Report\n\n`;
@@ -270,12 +265,42 @@ jobs:
                 report += `---\n\n`;
                 report += `**Status**: ⚠️ All required checks passed, but consider the recommendations above.\n`;
               }
+              commentBody = report;
+            }
 
+            // Find existing bot validation comment and update it, or create a new one
+            const MARKER = '<!-- pr-validation-bot -->';
+            commentBody = MARKER + '\n' + commentBody;
+
+            let existing = null;
+            let page = 1;
+            while (!existing) {
+              const { data: comments } = await github.rest.issues.listComments({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: pr.number,
+                per_page: 100,
+                page: page
+              });
+              if (comments.length === 0) break;
+              existing = comments.find(c => c.user.type === 'Bot' && c.body.includes(MARKER)) || null;
+              if (comments.length < 100) break;
+              page++;
+            }
+
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existing.id,
+                body: commentBody
+              });
+            } else {
               await github.rest.issues.createComment({
                 owner: context.repo.owner,
                 repo: context.repo.repo,
                 issue_number: pr.number,
-                body: report
+                body: commentBody
               });
             }
 
