@@ -2,6 +2,8 @@
 
 Thank you for your interest in contributing to Gravity-Lang! This document provides guidelines and instructions for contributing to the project.
 
+**Maintainer**: [@dill-lk](https://github.com/dill-lk)
+
 ## Table of Contents
 
 - [Code of Conduct](#code-of-conduct)
@@ -229,6 +231,10 @@ When adding features, include:
 ## License
 
 By contributing, you agree that your contributions will be licensed under the same license as the project (see LICENSE file).
+
+## Contributors
+
+All contributors are recognized in our [CONTRIBUTORS.md](CONTRIBUTORS.md) file. Thank you to everyone who helps make Gravity-Lang better!
 
 ---
 
