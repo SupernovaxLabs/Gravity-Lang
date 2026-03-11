@@ -93,20 +93,15 @@ jobs:
             // Add comment with version info
             const versionEmoji = bumpType === 'major' ? '🚨' : bumpType === 'minor' ? '✨' : '🔧';
 
+            const majorNote = bumpType === 'major' ? '⚠️ This is a **breaking change** - major version will be incremented.' : '';
+            const minorNote = bumpType === 'minor' ? '🎉 This adds new features - minor version will be incremented.' : '';
+            const patchNote = bumpType === 'patch' ? '🐛 This is a fix or minor improvement - patch version will be incremented.' : '';
+
             await github.rest.issues.createComment({
               owner: context.repo.owner,
               repo: context.repo.repo,
               issue_number: pr.number,
-              body: `${versionEmoji} **Version Impact**
-
-This PR will result in a **${bumpType}** version bump:
-- Current version: \`${latestTag}\`
-- Next version (if merged): \`${nextVersion}\`
-
-${bumpType === 'major' ? '⚠️ This is a **breaking change** - major version will be incremented.' : ''}
-${bumpType === 'minor' ? '🎉 This adds new features - minor version will be incremented.' : ''}
-${bumpType === 'patch' ? '🐛 This is a fix or minor improvement - patch version will be incremented.' : ''}
-`
+              body: `${versionEmoji} **Version Impact**\n\nThis PR will result in a **${bumpType}** version bump:\n- Current version: \`${latestTag}\`\n- Next version (if merged): \`${nextVersion}\`\n\n${majorNote}${minorNote}${patchNote}`
             });
 
             return {

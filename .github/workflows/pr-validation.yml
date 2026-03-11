@@ -240,11 +240,7 @@ jobs:
                 owner: context.repo.owner,
                 repo: context.repo.repo,
                 issue_number: pr.number,
-                body: `✅ **PR Guidelines Validation Passed**
-
-This PR follows all required contributing guidelines! Thank you for following best practices.
-
-📖 See [CONTRIBUTING.md](../CONTRIBUTING.md) for more information.`
+                body: '✅ **PR Guidelines Validation Passed**\n\nThis PR follows all required contributing guidelines! Thank you for following best practices.\n\n📖 See [CONTRIBUTING.md](../CONTRIBUTING.md) for more information.'
               });
             } else {
               // Generate detailed report
@@ -299,19 +295,7 @@ This PR follows all required contributing guidelines! Thank you for following be
 
             // Only add checklist if PR doesn't already have one
             if (!body.includes('- [') && !body.includes('- [ ]')) {
-              const checklist = `### 📝 Pre-submission Checklist
-
-Before merging, please ensure:
-
-- [ ] Code follows project coding standards
-- [ ] Self-reviewed code changes
-- [ ] Added comments for complex logic
-- [ ] Updated documentation for functionality changes
-- [ ] No new warnings generated
-- [ ] Tests added/updated and passing
-- [ ] Dependent changes merged and published
-
-You can check these items in your PR description or as you work through them.`;
+              const checklist = '### 📝 Pre-submission Checklist\n\nBefore merging, please ensure:\n\n- [ ] Code follows project coding standards\n- [ ] Self-reviewed code changes\n- [ ] Added comments for complex logic\n- [ ] Updated documentation for functionality changes\n- [ ] No new warnings generated\n- [ ] Tests added/updated and passing\n- [ ] Dependent changes merged and published\n\nYou can check these items in your PR description or as you work through them.';
 
               await github.rest.issues.createComment({
                 owner: context.repo.owner,
