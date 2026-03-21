@@ -1645,7 +1645,7 @@ int main(int argc, char** argv) {
  » Accuracy: 99.2% (NASA-Ref) | Mode: High-Precision (long double)
 )HELP";
         std::cout << " » System: Cross-platform Native C++ | Build: " << __DATE__ << " " << __TIME__ << "\n";
-        std::cout << R"HELP( » "For Students, By a Yaka Labs"
+        std::cout << R"HELP( » "For Students, By Supernova Labs"
 
 usage:
   gravity run <script.gravity> [--profile] [--strict] [--dump-all[=file]] [--resume <checkpoint.json>]
