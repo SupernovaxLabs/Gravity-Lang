@@ -22,6 +22,81 @@
 #include <unordered_map>
 #include <utility>
 #include <vector>
+#ifdef _WIN32
+#  include <io.h>
+#else
+#  include <unistd.h>
+#endif
+
+// ── TUI / colour helpers ──────────────────────────────────────────────────────
+namespace tui {
+    static const bool COUT_ON = []() -> bool {
+#ifdef _WIN32
+        return _isatty(_fileno(stdout)) != 0;
+#else
+        return isatty(STDOUT_FILENO) != 0;
+#endif
+    }();
+    static const bool CERR_ON = []() -> bool {
+#ifdef _WIN32
+        return _isatty(_fileno(stderr)) != 0;
+#else
+        return isatty(STDERR_FILENO) != 0;
+#endif
+    }();
+
+    // ANSI codes for stdout
+    static const char* const RST = COUT_ON ? "\033[0m"  : "";
+    static const char* const BD  = COUT_ON ? "\033[1m"  : "";
+    static const char* const DIM = COUT_ON ? "\033[2m"  : "";
+    static const char* const CYN = COUT_ON ? "\033[96m" : "";
+    static const char* const BLU = COUT_ON ? "\033[94m" : "";
+    static const char* const GRN = COUT_ON ? "\033[92m" : "";
+    static const char* const YEL = COUT_ON ? "\033[93m" : "";
+    static const char* const RED = COUT_ON ? "\033[91m" : "";
+    static const char* const MAG = COUT_ON ? "\033[95m" : "";
+    static const char* const WHT = COUT_ON ? "\033[97m" : "";
+    static const char* const GRY = COUT_ON ? "\033[90m" : "";
+
+    // Print a bold, coloured section heading to stdout
+    inline void section(const char* title) {
+        std::cout << "\n" << BD << CYN << "  " << title << RST
+                  << GRY << "\n  " << std::string(56, '-') << RST << "\n";
+    }
+
+    // Progress bar – written to stderr so it does not pollute stdout data streams
+    static int s_bar_cols = 0;
+    inline void progress(int current, int total, const char* label = "Simulating") {
+        if (!CERR_ON || total <= 0) return;
+        constexpr int BAR_W = 30;
+        const int pct    = static_cast<int>(100LL * current / total);
+        const int filled = static_cast<int>(static_cast<long long>(BAR_W) * current / total);
+        std::string bar;
+        bar.reserve(static_cast<size_t>(BAR_W) * 3 + 4);
+        for (int i = 0; i < filled; ++i)   bar += "█";
+        for (int i = filled; i < BAR_W; ++i) bar += "░";
+        // Use literal ANSI codes so the function is self-contained for stderr
+        const char* c = "\033[96m";  // bright cyan
+        const char* b = "\033[1m";   // bold
+        const char* g = "\033[90m";  // dark grey
+        const char* w = "\033[97m";  // bright white
+        const char* r = "\033[0m";   // reset
+        std::ostringstream oss;
+        oss << "\r  " << c << b << label << r
+            << "  " << g << "[" << r << c << bar << r << g << "]" << r
+            << "  " << b << w << pct << "%" << r
+            << g << "  " << current << "/" << total << r << "   ";
+        s_bar_cols = static_cast<int>(std::string(label).size()) + BAR_W + 30;
+        std::cerr << oss.str();
+        std::cerr.flush();
+    }
+    inline void clear_progress() {
+        if (!CERR_ON) return;
+        std::cerr << "\r" << std::string(static_cast<size_t>(s_bar_cols + 8), ' ') << "\r";
+        std::cerr.flush();
+    }
+}
+// ─────────────────────────────────────────────────────────────────────────────
 
 namespace {
 
@@ -1191,6 +1266,32 @@ void run_program(Program& p) {
         print_orbital_elements(p.bodies, index[req.body], index[req.center]);
     }
 
+    // Show a start banner on stderr (does not pollute stdout data streams)
+    if (tui::CERR_ON) {
+        std::cerr << "\n" << tui::CYN << tui::BD
+            << "   ██████╗ ██████╗  █████╗ ██╗   ██╗██╗████████╗██╗   ██╗\n"
+            << "  ██╔════╝ ██╔══██╗██╔══██╗██║   ██║██║╚══██╔══╝╚██╗ ██╔╝\n"
+            << "  ██║  ███╗██████╔╝███████║██║   ██║██║   ██║    ╚████╔╝ \n"
+            << "  ██║   ██║██╔══██╗██╔══██║╚██╗ ██╔╝██║   ██║     ╚██╔╝  \n"
+            << "  ╚██████╔╝██║  ██║██║  ██║ ╚████╔╝ ██║   ██║      ██║   \n"
+            << "   ╚═════╝ ╚═╝  ╚═╝╚═╝  ╚═╝  ╚═══╝  ╚═╝   ╚═╝      ╚═╝  \n"
+            << tui::RST;
+        std::cerr << tui::GRY
+            << "  ─────────────────────────────────────────────────────────\n"
+            << tui::RST;
+        std::cerr << tui::CYN << tui::BD << "  › " << tui::RST
+                  << "Starting simulation"
+                  << tui::GRY
+                  << "  bodies=" << p.bodies.size()
+                  << "  steps=" << p.steps
+                  << "  dt=" << p.dt
+                  << "  integrator=" << p.integrator
+                  << tui::RST << "\n\n";
+        std::cerr.flush();
+    }
+
+    const int progress_interval = std::max(1, p.steps / 200);
+
     for (int step = 0; step < p.steps; ++step) {
         for (const auto& thrust : p.step_thrusts) {
             if (!index.contains(thrust.name)) continue;
@@ -1593,7 +1694,14 @@ void run_program(Program& p) {
             const auto ang = total_angular_momentum(p.bodies);
             std::cout << "angular_momentum.step(" << (step + 1) << ")=(" << ang[0] << ", " << ang[1] << ", " << ang[2] << ")\n";
         }
+
+        // Progress bar on stderr (throttled)
+        if (!p.verbose && (step + 1) % progress_interval == 0) {
+            tui::progress(step + 1, p.steps);
+        }
     }
+
+    tui::clear_progress();
 
     for (const auto& req : p.orbital_requests) {
         if (req.before_sim) continue;
@@ -1629,36 +1737,73 @@ void run_program(Program& p) {
                   << " threshold=" << p.threading_min_interactions
                   << "\n";
     }
+
+    // Completion summary on stderr
+    if (tui::CERR_ON) {
+        const auto sim_ms = std::chrono::duration_cast<std::chrono::milliseconds>(Clock::now() - sim_started).count();
+        std::cerr << tui::GRN << tui::BD << " ✓ " << tui::RST
+                  << "Simulation complete  "
+                  << tui::GRY << sim_ms << " ms  ·  "
+                  << p.steps << " steps  ·  "
+                  << p.bodies.size() << " bodies"
+                  << tui::RST << "\n";
+    }
 }
 
 }  // namespace
 
 int main(int argc, char** argv) {
-    auto print_help = []() {
-        std::cout << R"HELP(__   _ __       
-   ____ __________ __   _  ____  / /_ (_) /___  __
-  / __ `/ ___/ __ `/ | / / / _ \/ __/ / / __ \/ /
- / /_/ / /  / /_/ /| |/ / /  __/ /_ / / /_/ /_/ / 
- \__, /_/   \__,_/ |___/  \___/\__//_/\____/\__, / 
-/____/         ENGINE v3.0 [C++ NATIVE]    /____/  
+    auto print_banner = []() {
+        std::cout << "\n";
+        std::cout << tui::CYN << tui::BD
+            << "   ██████╗ ██████╗  █████╗ ██╗   ██╗██╗████████╗██╗   ██╗\n"
+            << "  ██╔════╝ ██╔══██╗██╔══██╗██║   ██║██║╚══██╔══╝╚██╗ ██╔╝\n"
+            << "  ██║  ███╗██████╔╝███████║██║   ██║██║   ██║    ╚████╔╝ \n"
+            << "  ██║   ██║██╔══██╗██╔══██║╚██╗ ██╔╝██║   ██║     ╚██╔╝  \n"
+            << "  ╚██████╔╝██║  ██║██║  ██║ ╚████╔╝ ██║   ██║      ██║   \n"
+            << "   ╚═════╝ ╚═╝  ╚═╝╚═╝  ╚═╝  ╚═══╝  ╚═╝   ╚═╝      ╚═╝  \n"
+            << tui::RST;
+        std::cout << tui::GRY
+            << "  ─────────────────────────────────────────────────────────\n"
+            << tui::RST;
+        std::cout << tui::GRN << tui::BD << "  ENGINE v3.0" << tui::RST
+                  << tui::GRY << "  [C++ NATIVE]" << tui::RST
+                  << "  ·  " << tui::MAG << "99.2% NASA-accuracy" << tui::RST
+                  << "  ·  " << tui::YEL << "High-Precision (long double)" << tui::RST << "\n";
+        std::cout << tui::GRY << "  Build: " << tui::RST
+                  << __DATE__ << " " << __TIME__ << "  ·  "
+                  << tui::DIM << "For Students, By Supernova Labs" << tui::RST << "\n";
+        std::cout << tui::GRY
+            << "  ─────────────────────────────────────────────────────────\n"
+            << tui::RST;
+    };
 
- » Accuracy: 99.2% (NASA-Ref) | Mode: High-Precision (long double)
-)HELP";
-        std::cout << " » System: Cross-platform Native C++ | Build: " << __DATE__ << " " << __TIME__ << "\n";
-        std::cout << R"HELP( » "For Students, By Supernova Labs"
-
-usage:
-  gravity run <script.gravity> [--profile] [--strict] [--dump-all[=file]] [--resume <checkpoint.json>]
-  gravity check <script.gravity> [--strict]
-  gravity list-features
-  gravity --help
-  gravity --version
-)HELP";
+    auto print_help = [&print_banner]() {
+        print_banner();
+        tui::section("USAGE");
+        std::cout << tui::WHT << "    gravity " << tui::RST
+                  << tui::CYN << "run" << tui::RST
+                  << " <script.gravity>"
+                  << tui::GRY << "  [--profile] [--strict] [--dump-all[=file]]\n"
+                  << "                              [--resume <checkpoint.json>]\n" << tui::RST;
+        std::cout << tui::WHT << "    gravity " << tui::RST
+                  << tui::CYN << "check" << tui::RST
+                  << " <script.gravity>"
+                  << tui::GRY << "  [--strict]\n" << tui::RST;
+        std::cout << tui::WHT << "    gravity " << tui::RST
+                  << tui::CYN << "list-features\n" << tui::RST;
+        std::cout << tui::WHT << "    gravity " << tui::RST
+                  << tui::CYN << "--help" << tui::RST
+                  << tui::GRY << "  |  " << tui::RST
+                  << tui::CYN << "--version\n" << tui::RST;
+        std::cout << "\n";
     };
 
     if (argc < 2) {
         print_help();
-        std::cout << "\nTip: use `gravity run <script.gravity>` to execute a simulation.\n";
+        std::cout << tui::YEL << "  Tip: " << tui::RST
+                  << "use " << tui::CYN << "gravity run <script.gravity>" << tui::RST
+                  << " to execute a simulation.\n\n";
         return 2;
     }
 
@@ -1668,15 +1813,48 @@ usage:
         return 0;
     }
     if (command == "--version" || command == "version") {
-        std::cout << "gravity ENGINE v3.0 [C++ NATIVE] build " << __DATE__ << " " << __TIME__ << "\n";
+        std::cout << tui::CYN << tui::BD << "gravity" << tui::RST
+                  << " ENGINE v3.0 [C++ NATIVE]  build " << __DATE__ << " " << __TIME__ << "\n";
         return 0;
     }
     if (command == "list-features") {
-        std::cout << "integrators: euler, verlet, leapfrog, rk4, yoshida4, rk45\n";
-        std::cout << "gravity models: newtonian, mond, gr_correction\n";
-        std::cout << "threading: threads auto|N, threading min_interactions N, GRAVITY_THREADS (thread-pool force accumulation)\n";
-        std::cout << "diagnostics: monitor energy|momentum|angular_momentum, orbital_elements, verbose, sensitivity, merge_heat, confidence.score, profile on|off, plot on|off [body Name]\n";
-        std::cout << "rocketry: variable mass burn, gravity turn autopilot, variable ISP, atmospheric drag, PID throttle target, step detach staging\n";
+        print_banner();
+        tui::section("INTEGRATORS");
+        std::cout << "    " << tui::CYN << "euler" << tui::RST << "  ·  "
+                  << tui::CYN << "verlet" << tui::RST << "  ·  "
+                  << tui::CYN << "leapfrog" << tui::RST << "  ·  "
+                  << tui::CYN << "rk4" << tui::RST << "  ·  "
+                  << tui::CYN << "yoshida4" << tui::RST << "  ·  "
+                  << tui::CYN << "rk45" << tui::RST << "\n";
+        tui::section("GRAVITY MODELS");
+        std::cout << "    " << tui::CYN << "newtonian" << tui::RST << "  ·  "
+                  << tui::CYN << "mond" << tui::RST << "  ·  "
+                  << tui::CYN << "gr_correction" << tui::RST << "\n";
+        tui::section("THREADING");
+        std::cout << "    " << tui::CYN << "threads auto|N" << tui::RST
+                  << tui::GRY << "  — thread-pool force accumulation\n" << tui::RST;
+        std::cout << "    " << tui::CYN << "threading min_interactions N" << tui::RST
+                  << tui::GRY << "  — tune parallelism threshold\n" << tui::RST;
+        std::cout << "    " << tui::CYN << "GRAVITY_THREADS" << tui::RST
+                  << tui::GRY << "  — override via environment variable\n" << tui::RST;
+        tui::section("DIAGNOSTICS");
+        std::cout << "    " << tui::CYN << "monitor energy|momentum|angular_momentum\n" << tui::RST;
+        std::cout << "    " << tui::CYN << "orbital_elements" << tui::RST << "  ·  "
+                  << tui::CYN << "verbose" << tui::RST << "  ·  "
+                  << tui::CYN << "sensitivity" << tui::RST << "  ·  "
+                  << tui::CYN << "merge_heat\n" << tui::RST;
+        std::cout << "    " << tui::CYN << "confidence.score" << tui::RST << "  ·  "
+                  << tui::CYN << "profile on|off" << tui::RST << "  ·  "
+                  << tui::CYN << "plot on|off" << tui::RST
+                  << tui::GRY << " [body Name]\n" << tui::RST;
+        tui::section("ROCKETRY");
+        std::cout << "    " << tui::CYN << "variable mass burn" << tui::RST << "  ·  "
+                  << tui::CYN << "gravity turn autopilot" << tui::RST << "\n";
+        std::cout << "    " << tui::CYN << "variable ISP" << tui::RST << "  ·  "
+                  << tui::CYN << "atmospheric drag" << tui::RST << "  ·  "
+                  << tui::CYN << "PID throttle target" << tui::RST << "\n";
+        std::cout << "    " << tui::CYN << "step detach staging\n" << tui::RST;
+        std::cout << "\n";
         return 0;
     }
 
@@ -1704,11 +1882,11 @@ usage:
         } else if (arg == "--resume" && i + 1 < argc) {
             cli_resume_file = argv[++i];
         } else {
-            std::cerr << "error: unknown option for gravity " << command << ": " << arg << "\n";
+            std::cerr << tui::RED << tui::BD << " ✗ " << tui::RST
+                      << "unknown option for gravity " << command << ": " << arg << "\n";
             return 2;
         }
     }
-
 
     try {
         Program p = parse_gravity(argv[2], strict_mode);
@@ -1720,13 +1898,17 @@ usage:
         }
         if (!cli_resume_file.empty()) p.resume_file = cli_resume_file;
         if (command == "check") {
-            std::cout << "ok: parsed script with " << p.bodies.size() << " bodies, " << p.pulls.size() << " pull rules, "
-                      << p.steps << " steps\n";
+            std::cout << tui::GRN << tui::BD << " ✓ " << tui::RST
+                      << "parsed script with "
+                      << tui::CYN << p.bodies.size() << tui::RST << " bodies, "
+                      << tui::CYN << p.pulls.size() << tui::RST << " pull rules, "
+                      << tui::CYN << p.steps << tui::RST << " steps\n";
             return 0;
         }
         run_program(p);
         if (p.plot_explicitly_set && p.auto_plot && p.dump_all_frequency > 0 && !p.dump_all_file.empty()) {
-            std::cout << "\n[System] Simulation complete. Launching telemetry dashboard...\n";
+            std::cerr << tui::CYN << tui::BD << " › " << tui::RST
+                      << "Simulation complete. Launching telemetry dashboard...\n";
             const std::string command = "python3 tools/telemetry_dashboard.py " + shell_quote(p.dump_all_file) + " --body " + shell_quote(p.auto_plot_body);
             const int plot_rc = std::system(command.c_str());
             if (plot_rc != 0) {
@@ -1735,7 +1917,7 @@ usage:
             }
         }
     } catch (const std::exception& ex) {
-        std::cerr << "error: " << ex.what() << "\n";
+        std::cerr << tui::RED << tui::BD << " ✗  error: " << tui::RST << ex.what() << "\n";
         return 1;
     }
 

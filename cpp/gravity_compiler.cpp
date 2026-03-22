@@ -12,6 +12,40 @@
 #include <vector>
 #include <cstdlib>
 #include <filesystem>
+#ifdef _WIN32
+#  include <io.h>
+#else
+#  include <unistd.h>
+#endif
+
+// ── TUI / colour helpers ──────────────────────────────────────────────────────
+namespace tui {
+    static const bool ON = []() -> bool {
+#ifdef _WIN32
+        return _isatty(_fileno(stdout)) != 0;
+#else
+        return isatty(STDOUT_FILENO) != 0;
+#endif
+    }();
+
+    static const char* const RST = ON ? "\033[0m"  : "";
+    static const char* const BD  = ON ? "\033[1m"  : "";
+    static const char* const DIM = ON ? "\033[2m"  : "";
+    static const char* const CYN = ON ? "\033[96m" : "";
+    static const char* const GRN = ON ? "\033[92m" : "";
+    static const char* const YEL = ON ? "\033[93m" : "";
+    static const char* const RED = ON ? "\033[91m" : "";
+    static const char* const MAG = ON ? "\033[95m" : "";
+    static const char* const WHT = ON ? "\033[97m" : "";
+    static const char* const GRY = ON ? "\033[90m" : "";
+
+    inline void section(const char* title) {
+        std::cout << "\n" << BD << CYN << "  " << title << RST
+                  << GRY << "\n  " << std::string(52, '-') << RST << "\n";
+    }
+}
+// ─────────────────────────────────────────────────────────────────────────────
+
 struct Body {
     std::string name;
     std::array<double, 3> pos{0, 0, 0};
@@ -315,19 +349,46 @@ static std::string emit_cpp(const Program& p) {
 }
 
 int main(int argc, char** argv) {
-    auto print_help = []() {
-        std::cout
-            << "==============================\n"
-            << "    GRAVITY-LANG C++ EMITTER  \n"
-            << "==============================\n"
-            << "usage:\n"
-            << "  gravityc <script.gravity> --emit <out.cpp> [--build <exe>] [--run] [--cxx <compiler>] [--strict]\n"
-            << "  gravityc --help\n"
-            << "  gravityc --version\n";
+    auto print_banner = []() {
+        std::cout << "\n";
+        std::cout << tui::CYN << tui::BD
+            << "   ██████╗ ██████╗  █████╗ ██╗   ██╗██╗████████╗██╗   ██╗\n"
+            << "  ██╔════╝ ██╔══██╗██╔══██╗██║   ██║██║╚══██╔══╝╚██╗ ██╔╝\n"
+            << "  ██║  ███╗██████╔╝███████║██║   ██║██║   ██║    ╚████╔╝ \n"
+            << "  ██║   ██║██╔══██╗██╔══██║╚██╗ ██╔╝██║   ██║     ╚██╔╝  \n"
+            << "  ╚██████╔╝██║  ██║██║  ██║ ╚████╔╝ ██║   ██║      ██║   \n"
+            << "   ╚═════╝ ╚═╝  ╚═╝╚═╝  ╚═╝  ╚═══╝  ╚═╝   ╚═╝      ╚═╝  \n"
+            << tui::RST;
+        std::cout << tui::GRY
+            << "  ─────────────────────────────────────────────────────\n"
+            << tui::RST;
+        std::cout << tui::GRN << tui::BD << "  C++ EMITTER v3.0" << tui::RST
+                  << "  ·  " << tui::YEL << "AOT Compiler" << tui::RST
+                  << "  ·  " << tui::DIM << "For Students, By Supernova Labs" << tui::RST << "\n";
+        std::cout << tui::GRY
+            << "  ─────────────────────────────────────────────────────\n"
+            << tui::RST;
     };
+
+    auto print_help = [&print_banner]() {
+        print_banner();
+        tui::section("USAGE");
+        std::cout << tui::WHT << "    gravityc " << tui::RST
+                  << tui::CYN << "<script.gravity>" << tui::RST
+                  << " --emit <out.cpp>"
+                  << tui::GRY << "  [--build <exe>] [--run] [--cxx <compiler>] [--strict]\n" << tui::RST;
+        std::cout << tui::WHT << "    gravityc " << tui::RST
+                  << tui::CYN << "--help" << tui::RST
+                  << tui::GRY << "  |  " << tui::RST
+                  << tui::CYN << "--version\n" << tui::RST;
+        std::cout << "\n";
+    };
+
     if (argc < 2) {
         print_help();
-        std::cout << "\nTip: use `gravityc <script.gravity> --emit out.cpp` to generate C++.\n";
+        std::cout << tui::YEL << "  Tip: " << tui::RST
+                  << "use " << tui::CYN << "gravityc <script.gravity> --emit out.cpp" << tui::RST
+                  << " to generate C++.\n\n";
         return 2;
     }
     const std::string first = argv[1];
@@ -336,7 +397,8 @@ int main(int argc, char** argv) {
         return 0;
     }
     if (first == "--version" || first == "version") {
-        std::cout << "gravityc ENGINE v3.0 emitter build " << __DATE__ << " " << __TIME__ << "\n";
+        std::cout << tui::CYN << tui::BD << "gravityc" << tui::RST
+                  << " ENGINE v3.0 emitter  build " << __DATE__ << " " << __TIME__ << "\n";
         return 0;
     }
     std::string script = argv[1];
@@ -353,13 +415,15 @@ int main(int argc, char** argv) {
         else if (arg == "--cxx" && i + 1 < argc) cxx = argv[++i];
         else if (arg == "--strict") strict_mode = true;
         else {
-            std::cerr << "error: unknown option: " << arg << "\n";
+            std::cerr << tui::RED << tui::BD << " ✗  error: " << tui::RST
+                      << "unknown option: " << arg << "\n";
             print_help();
             return 2;
         }
     }
     if (emit.empty()) {
-        std::cerr << "error: --emit is required\n";
+        std::cerr << tui::RED << tui::BD << " ✗  error: " << tui::RST
+                  << "--emit is required\n";
         print_help();
         return 2;
     }
@@ -369,15 +433,20 @@ int main(int argc, char** argv) {
         if (!out) throw std::runtime_error("cannot open output file: " + emit);
         out << emit_cpp(p);
         out.close();
+        std::cout << tui::GRN << tui::BD << " ✓ " << tui::RST
+                  << "emitted C++: " << tui::CYN << emit << tui::RST << "\n";
         if (!build.empty()) {
             std::string cmd = cxx + " -O3 -std=c++17 ";
 #ifdef _WIN32
             cmd += "-static -static-libstdc++ -static-libgcc ";
 #endif
             cmd += "\"" + emit + "\" -o \"" + build + "\"";
+            std::cerr << tui::CYN << tui::BD << " › " << tui::RST
+                      << "compiling with " << cxx << "...\n";
             int rc = std::system(cmd.c_str());
             if (rc != 0) throw std::runtime_error("compiler failed: " + cmd);
-            std::cout << "built executable: " << build << "\n";
+            std::cout << tui::GRN << tui::BD << " ✓ " << tui::RST
+                      << "built executable: " << tui::CYN << build << tui::RST << "\n";
             if (run_output) {
                 const std::string run_cmd = "\"" + build + "\"";
                 const int run_rc = std::system(run_cmd.c_str());
@@ -386,9 +455,8 @@ int main(int argc, char** argv) {
         } else if (run_output) {
             throw std::runtime_error("--run requires --build <exe>");
         }
-        std::cout << "emitted C++: " << emit << "\n";
     } catch (const std::exception& ex) {
-        std::cerr << "error: " << ex.what() << "\n";
+        std::cerr << tui::RED << tui::BD << " ✗  error: " << tui::RST << ex.what() << "\n";
         return 1;
     }
     return 0;
