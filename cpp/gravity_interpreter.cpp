@@ -24,6 +24,7 @@
 #include <vector>
 #ifdef _WIN32
 #  include <io.h>
+#  include <windows.h>
 #else
 #  include <unistd.h>
 #endif
@@ -44,6 +45,8 @@ namespace tui {
         return isatty(STDERR_FILENO) != 0;
 #endif
     }();
+
+#include "gravity_win32_console.h"
 
     // ANSI codes for stdout
     static const char* const RST = COUT_ON ? "\033[0m"  : "";
@@ -1753,6 +1756,9 @@ void run_program(Program& p) {
 }  // namespace
 
 int main(int argc, char** argv) {
+#ifdef _WIN32
+    tui::win32_enable_utf8_console();
+#endif
     auto print_banner = []() {
         std::cout << "\n";
         std::cout << tui::CYN << tui::BD
