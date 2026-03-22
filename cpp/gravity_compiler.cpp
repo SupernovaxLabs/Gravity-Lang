@@ -14,6 +14,7 @@
 #include <filesystem>
 #ifdef _WIN32
 #  include <io.h>
+#  include <windows.h>
 #else
 #  include <unistd.h>
 #endif
@@ -38,6 +39,8 @@ namespace tui {
     static const char* const MAG = ON ? "\033[95m" : "";
     static const char* const WHT = ON ? "\033[97m" : "";
     static const char* const GRY = ON ? "\033[90m" : "";
+
+#include "gravity_win32_console.h"
 
     inline void section(const char* title) {
         std::cout << "\n" << BD << CYN << "  " << title << RST
@@ -349,6 +352,9 @@ static std::string emit_cpp(const Program& p) {
 }
 
 int main(int argc, char** argv) {
+#ifdef _WIN32
+    tui::win32_enable_utf8_console();
+#endif
     auto print_banner = []() {
         std::cout << "\n";
         std::cout << tui::CYN << tui::BD
